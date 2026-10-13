@@ -1,0 +1,19 @@
+package br.pucrs.projarc.gestaoplanosvoo.domain.model;
+
+/** Códigos estáveis das violações de validação, usados pelos clientes da API. */
+public enum CodigoViolacao {
+    PERCURSO_VAZIO,
+    ORIGEM_INCOERENTE,
+    DESTINO_INCOERENTE,
+    PERCURSO_DESCONTINUO,
+    ENTRADA_DIFERENTE_PARTIDA,
+    HORARIO_INCOMPATIVEL,
+    SEM_POUSO_FINAL,
+    DIAS_DIFERENTES,
+    VAGA_FORA_DO_AEROPORTO,
+    ALTITUDE_PROIBIDA_CATEGORIA,
+    HORARIO_PROIBIDO_CATEGORIA,
+    AUTONOMIA_EXCEDIDA,
+    ALTITUDE_OCUPADA,
+    VAGA_OCUPADA
+}

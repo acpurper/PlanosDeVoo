@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: planosvoo-db
+    environment:
+      POSTGRES_DB: planosvoo
+      POSTGRES_USER: planosvoo
+      POSTGRES_PASSWORD: planosvoo
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U planosvoo -d planosvoo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:

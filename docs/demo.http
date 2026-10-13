@@ -1,0 +1,367 @@
+### Roteiro de demonstração — Sistema de Gestão de Planos de Voo
+#
+# Data de referência: 2026-12-01
+# Banco recém-criado (docker compose down -v && docker compose up -d) e aplicação no ar (./mvnw spring-boot:run).
+#
+# Formato: extensão "REST Client" do VS Code (as requisições com "# @name" guardam a resposta,
+# e as seguintes usam {{nome.response.body.id}}). No IntelliJ, use o HTTP Client nativo.
+# Também dá para executar tudo pelo Swagger UI: http://localhost:8080/swagger-ui.html
+#
+# Planos da carga inicial: 1 a 5 aprovados em 2026-12-01; 6 aprovado em 2026-09-01 (já executado);
+# 7 em edição (autonomia excedida). Aeronaves: PP-LEN e PP-JAT (particulares), PR-AZA e PR-GOB
+# (passageiros), PR-CGA e PR-CGB (carga). Pilotos 1 a 4.
+
+@host = http://localhost:8080
+
+############################################################################
+# 0. Situação inicial
+############################################################################
+
+### Plano 1 aprovado com as reservas (R2 a 30.000 nos slots 08h e 09h; GRU-1 nos slots 09h e 10h)
+GET {{host}}/planos/1
+
+### Plano 2: sobrevoo de FLN e pouso em CWB, com chegadas calculadas
+GET {{host}}/planos/2
+
+############################################################################
+# 1. Ciclo completo com sucesso (UC02 -> UC03 -> UC06 -> UC07)
+############################################################################
+
+### UC02: criar plano PR-GOB POA -> FLN às 16:00 (nasce EM_EDICAO, sem trechos)
+# @name sucesso
+POST {{host}}/planos
+Content-Type: application/json
+
+{ "pilotoId": 1, "aeronave": "PR-GOB", "origem": "POA", "destino": "FLN", "dataHoraPartida": "2026-12-01T16:00" }
+
+### UC03: R1 a 30.000, entrada 16:00; 363 km a 830 km/h = 27 min -> chegada 16:27; pouso FLN-2 por 30 min
+POST {{host}}/planos/{{sucesso.response.body.id}}/trechos
+Content-Type: application/json
+
+{ "aerovia": "R1", "altitudePes": 30000, "horarioEntrada": "2026-12-01T16:00",
+  "pouso": { "vaga": 2, "permanenciaMin": 30 } }
+
+### UC06: validar -> 200, "valido": true
+POST {{host}}/planos/{{sucesso.response.body.id}}/validacao
+
+### Validar NÃO reserva: a lista "reservas" continua vazia e a situação é EM_EDICAO
+GET {{host}}/planos/{{sucesso.response.body.id}}
+
+### UC07: aprovar -> 200 APROVADO, com reserva R1/30000 no slot 16h e FLN-2 no slot 16h
+POST {{host}}/planos/{{sucesso.response.body.id}}/aprovacao
+
+############################################################################
+# 2. Percurso inconsistente
+############################################################################
+
+### Plano PP-JAT POA -> GRU
+# @name descontinuo
+POST {{host}}/planos
+Content-Type: application/json
+
+{ "pilotoId": 2, "aeronave": "PP-JAT", "origem": "POA", "destino": "GRU", "dataHoraPartida": "2026-12-01T09:00" }
+
+### R1 termina em FLN...
+POST {{host}}/planos/{{descontinuo.response.body.id}}/trechos
+Content-Type: application/json
+
+{ "aerovia": "R1", "altitudePes": 25000, "horarioEntrada": "2026-12-01T09:00" }
+
+### ...e R6 começa em CWB
+POST {{host}}/planos/{{descontinuo.response.body.id}}/trechos
+Content-Type: application/json
+
+{ "aerovia": "R6", "altitudePes": 25000, "horarioEntrada": "2026-12-01T09:37",
+  "pouso": { "vaga": 3, "permanenciaMin": 30 } }
+
+### Validar -> PERCURSO_DESCONTINUO no trecho 2
+POST {{host}}/planos/{{descontinuo.response.body.id}}/validacao
+
+### Corrigir: trocar o trecho 2 por R4 (FLN -> CWB) deixa o destino incoerente (CWB != GRU) -> DESTINO_INCOERENTE
+PUT {{host}}/planos/{{descontinuo.response.body.id}}/trechos/2
+Content-Type: application/json
+
+{ "aerovia": "R4", "altitudePes": 25000, "horarioEntrada": "2026-12-01T09:37",
+  "pouso": { "vaga": 3, "permanenciaMin": 30 } }
+
+###
+POST {{host}}/planos/{{descontinuo.response.body.id}}/validacao
+
+############################################################################
+# 3. Horário incompatível com a duração calculada
+############################################################################
+
+### PP-JAT POA -> CWB às 14:00 (R1 a 600 km/h = 37 min)
+# @name horario
+POST {{host}}/planos
+Content-Type: application/json
+
+{ "pilotoId": 2, "aeronave": "PP-JAT", "origem": "POA", "destino": "CWB", "dataHoraPartida": "2026-12-01T14:00" }
+
+### R1 a 25.000 com sobrevoo de FLN
+POST {{host}}/planos/{{horario.response.body.id}}/trechos
+Content-Type: application/json
+
+{ "aerovia": "R1", "altitudePes": 25000, "horarioEntrada": "2026-12-01T14:00" }
+
+### R4 informado às 14:30 (o esperado após o sobrevoo é 14:37)
+POST {{host}}/planos/{{horario.response.body.id}}/trechos
+Content-Type: application/json
+
+{ "aerovia": "R4", "altitudePes": 25000, "horarioEntrada": "2026-12-01T14:30",
+  "pouso": { "vaga": 4, "permanenciaMin": 30 } }
+
+### Validar -> HORARIO_INCOMPATIVEL ("esperado 2026-12-01T14:37")
+POST {{host}}/planos/{{horario.response.body.id}}/validacao
+
+### Corrigir a entrada para 14:37 e validar de novo -> válido
+PUT {{host}}/planos/{{horario.response.body.id}}/trechos/2
+Content-Type: application/json
+
+{ "aerovia": "R4", "altitudePes": 25000, "horarioEntrada": "2026-12-01T14:37",
+  "pouso": { "vaga": 4, "permanenciaMin": 30 } }
+
+###
+POST {{host}}/planos/{{horario.response.body.id}}/validacao
+
+############################################################################
+# 4. Restrições da aeronave
+############################################################################
+
+### Passageiros a 27.000 pés
+# @name altitudeCategoria
+POST {{host}}/planos
+Content-Type: application/json
+
+{ "pilotoId": 1, "aeronave": "PR-AZA", "origem": "POA", "destino": "FLN", "dataHoraPartida": "2026-12-01T12:00" }
+
+###
+POST {{host}}/planos/{{altitudeCategoria.response.body.id}}/trechos
+Content-Type: application/json
+
+{ "aerovia": "R1", "altitudePes": 27000, "horarioEntrada": "2026-12-01T12:00",
+  "pouso": { "vaga": 5, "permanenciaMin": 30 } }
+
+### -> ALTITUDE_PROIBIDA_CATEGORIA
+POST {{host}}/planos/{{altitudeCategoria.response.body.id}}/validacao
+
+### Carga fora da janela: R4 a 780 km/h = 19 min; 05:45 -> 06:04 ultrapassa as 06:00
+# @name janelaCarga
+POST {{host}}/planos
+Content-Type: application/json
+
+{ "pilotoId": 3, "aeronave": "PR-CGA", "origem": "FLN", "destino": "CWB", "dataHoraPartida": "2026-12-01T05:45" }
+
+###
+POST {{host}}/planos/{{janelaCarga.response.body.id}}/trechos
+Content-Type: application/json
+
+{ "aerovia": "R4", "altitudePes": 30000, "horarioEntrada": "2026-12-01T05:45",
+  "pouso": { "vaga": 6, "permanenciaMin": 30 } }
+
+### -> HORARIO_PROIBIDO_CATEGORIA
+POST {{host}}/planos/{{janelaCarga.response.body.id}}/validacao
+
+############################################################################
+# 5. Autonomia insuficiente (plano 7 da carga inicial)
+############################################################################
+
+### PP-LEN (700 km -> limite seguro 595 km): R1 com sobrevoo + R4 = 608 km -> AUTONOMIA_EXCEDIDA no trecho 2
+POST {{host}}/planos/7/validacao
+
+### Pousar em FLN por 30 min reinicia a autonomia: chegada 09:55 + 30 min = entrada no trecho 2 às 10:25
+PUT {{host}}/planos/7/trechos/1
+Content-Type: application/json
+
+{ "aerovia": "R1", "altitudePes": 25000, "horarioEntrada": "2026-12-01T09:00",
+  "pouso": { "vaga": 4, "permanenciaMin": 30 } }
+
+###
+PUT {{host}}/planos/7/trechos/2
+Content-Type: application/json
+
+{ "aerovia": "R4", "altitudePes": 25000, "horarioEntrada": "2026-12-01T10:25",
+  "pouso": { "vaga": 3, "permanenciaMin": 30 } }
+
+### -> válido
+POST {{host}}/planos/7/validacao
+
+############################################################################
+# 6. Conflito em aerovia e aprovação sem reservas parciais
+############################################################################
+
+### PR-GOB POA -> GRU por R2 a 30.000 às 08:40 (63 min): slots 08h e 09h, ocupados pelo plano 1
+# @name conflito
+POST {{host}}/planos
+Content-Type: application/json
+
+{ "pilotoId": 4, "aeronave": "PR-GOB", "origem": "POA", "destino": "GRU", "dataHoraPartida": "2026-12-01T08:40" }
+
+###
+POST {{host}}/planos/{{conflito.response.body.id}}/trechos
+Content-Type: application/json
+
+{ "aerovia": "R2", "altitudePes": 30000, "horarioEntrada": "2026-12-01T08:40",
+  "pouso": { "vaga": 8, "permanenciaMin": 30 } }
+
+### Validar -> ALTITUDE_OCUPADA nos slots 08h e 09h
+POST {{host}}/planos/{{conflito.response.body.id}}/validacao
+
+### Aprovar -> 422 com as violações
+POST {{host}}/planos/{{conflito.response.body.id}}/aprovacao
+
+### Nenhuma reserva parcial: "reservas": [] e situação EM_EDICAO
+GET {{host}}/planos/{{conflito.response.body.id}}
+
+############################################################################
+# 7. Vaga indisponível
+############################################################################
+
+### PR-AZA POA -> GRU por R2 a 31.000 (altitude livre) às 09:03: chega 10:05; GRU-1 está ocupada às 10h (plano 1)
+# @name vaga
+POST {{host}}/planos
+Content-Type: application/json
+
+{ "pilotoId": 1, "aeronave": "PR-AZA", "origem": "POA", "destino": "GRU", "dataHoraPartida": "2026-12-01T09:03" }
+
+###
+POST {{host}}/planos/{{vaga.response.body.id}}/trechos
+Content-Type: application/json
+
+{ "aerovia": "R2", "altitudePes": 31000, "horarioEntrada": "2026-12-01T09:03",
+  "pouso": { "vaga": 1, "permanenciaMin": 30 } }
+
+### -> VAGA_OCUPADA no slot 10h
+POST {{host}}/planos/{{vaga.response.body.id}}/validacao
+
+############################################################################
+# 8. A aprovação considera a disponibilidade do momento
+############################################################################
+
+### Plano A: PP-JAT CWB -> GRU por R6 a 26.000 às 12:00
+# @name planoA
+POST {{host}}/planos
+Content-Type: application/json
+
+{ "pilotoId": 2, "aeronave": "PP-JAT", "origem": "CWB", "destino": "GRU", "dataHoraPartida": "2026-12-01T12:00" }
+
+###
+POST {{host}}/planos/{{planoA.response.body.id}}/trechos
+Content-Type: application/json
+
+{ "aerovia": "R6", "altitudePes": 26000, "horarioEntrada": "2026-12-01T12:00",
+  "pouso": { "vaga": 10, "permanenciaMin": 30 } }
+
+### Plano B: mesma aerovia, altitude e horário (PP-LEN)
+# @name planoB
+POST {{host}}/planos
+Content-Type: application/json
+
+{ "pilotoId": 4, "aeronave": "PP-LEN", "origem": "CWB", "destino": "GRU", "dataHoraPartida": "2026-12-01T12:00" }
+
+###
+POST {{host}}/planos/{{planoB.response.body.id}}/trechos
+Content-Type: application/json
+
+{ "aerovia": "R6", "altitudePes": 26000, "horarioEntrada": "2026-12-01T12:00",
+  "pouso": { "vaga": 11, "permanenciaMin": 30 } }
+
+### Os dois validam como válidos agora...
+POST {{host}}/planos/{{planoA.response.body.id}}/validacao
+
+###
+POST {{host}}/planos/{{planoB.response.body.id}}/validacao
+
+### ...A é aprovado...
+POST {{host}}/planos/{{planoA.response.body.id}}/aprovacao
+
+### ...e B, ao aprovar, revalida com a ocupação atual -> 422 ALTITUDE_OCUPADA
+POST {{host}}/planos/{{planoB.response.body.id}}/aprovacao
+
+############################################################################
+# 9. Cancelamento (UC11)
+############################################################################
+
+### Cancelar plano aprovado futuro -> 200 CANCELADO, "reservas": [] e trechos preservados
+POST {{host}}/planos/1/cancelamento
+
+### O recurso foi liberado: o plano do conflito (seção 6) agora valida sem ALTITUDE_OCUPADA
+POST {{host}}/planos/{{conflito.response.body.id}}/validacao
+
+### Cancelar de novo -> 409 PLANO_NAO_CANCELAVEL
+POST {{host}}/planos/1/cancelamento
+
+### Cancelar voo já executado (plano 6, 2026-09-01) -> 409 VOO_JA_EXECUTADO
+POST {{host}}/planos/6/cancelamento
+
+### Cancelar plano em edição -> 409 PLANO_NAO_CANCELAVEL
+POST {{host}}/planos/{{planoB.response.body.id}}/cancelamento
+
+############################################################################
+# 10. Somente planos em edição podem ser modificados
+############################################################################
+
+### Alterar trecho de plano aprovado -> 409 PLANO_NAO_EDITAVEL
+PUT {{host}}/planos/2/trechos/1
+Content-Type: application/json
+
+{ "aerovia": "R1", "altitudePes": 27000, "horarioEntrada": "2026-12-01T14:00" }
+
+### Remover trecho de plano aprovado -> 409
+DELETE {{host}}/planos/2/trechos/1
+
+### Validar ou aprovar plano aprovado -> 409
+POST {{host}}/planos/2/aprovacao
+
+### Alterar plano cancelado -> 409
+POST {{host}}/planos/1/trechos
+Content-Type: application/json
+
+{ "aerovia": "R2", "altitudePes": 30000, "horarioEntrada": "2026-12-01T08:10" }
+
+############################################################################
+# 11. Erros de entrada
+############################################################################
+
+### Aeronave inexistente -> 404
+POST {{host}}/planos
+Content-Type: application/json
+
+{ "pilotoId": 1, "aeronave": "XX-XXX", "origem": "POA", "destino": "GRU", "dataHoraPartida": "2026-12-01T10:00" }
+
+### Origem igual ao destino -> 422 ORIGEM_IGUAL_DESTINO
+POST {{host}}/planos
+Content-Type: application/json
+
+{ "pilotoId": 1, "aeronave": "PR-AZA", "origem": "POA", "destino": "POA", "dataHoraPartida": "2026-12-01T10:00" }
+
+### Altitude fora do passo de 1.000 pés -> 422 ALTITUDE_INVALIDA
+POST {{host}}/planos/{{planoB.response.body.id}}/trechos
+Content-Type: application/json
+
+{ "aerovia": "R6", "altitudePes": 26500, "horarioEntrada": "2026-12-01T12:00" }
+
+### Aerovia inexistente -> 404
+POST {{host}}/planos/{{planoB.response.body.id}}/trechos
+Content-Type: application/json
+
+{ "aerovia": "R99", "altitudePes": 26000, "horarioEntrada": "2026-12-01T12:00" }
+
+### Vaga inexistente no aeroporto de destino (FLN tem 16 vagas) -> 404
+POST {{host}}/planos/{{janelaCarga.response.body.id}}/trechos
+Content-Type: application/json
+
+{ "aerovia": "R5", "altitudePes": 30000, "horarioEntrada": "2026-12-01T06:30",
+  "pouso": { "vaga": 99, "permanenciaMin": 30 } }
+
+### Campos obrigatórios ausentes -> 400 com a lista "campos"
+POST {{host}}/planos/{{planoB.response.body.id}}/trechos
+Content-Type: application/json
+
+{ "aerovia": "R6" }
+
+### Trecho inexistente -> 404
+DELETE {{host}}/planos/{{planoB.response.body.id}}/trechos/9
+
+### Plano inexistente -> 404
+GET {{host}}/planos/9999

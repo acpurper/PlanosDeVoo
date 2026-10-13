@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: gestaoplanosvoo
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/planosvoo}
+    username: ${DB_USER:planosvoo}
+    password: ${DB_PASSWORD:planosvoo}
+  jpa:
+    # O esquema é do Flyway; o Hibernate não cria nem altera tabelas.
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+  flyway:
+    enabled: true
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+
+app:
+  # Data dos planos aprovados da carga inicial. Precisa ser futura para que o cancelamento possa ser demonstrado.
+  data-referencia: 2026-12-01
+  # Deixe vazio para usar o relógio do sistema. Ex.: 2026-11-20T10:00 fixa o "agora".
+  relogio-fixo: ${APP_RELOGIO_FIXO:}

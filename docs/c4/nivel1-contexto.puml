@@ -1,0 +1,12 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+UpdateElementStyle("person", $bgColor="#4A148C", $fontColor="#ffffff", $borderColor="#311B92")
+UpdateElementStyle("system", $bgColor="#7B1FA2", $fontColor="#ffffff", $borderColor="#4A148C")
+UpdateRelStyle($lineColor="#6A1B9A", $textColor="#4A148C")
+
+Person(operador, "Operador de Voo", "Responsável pelo planejamento, validação, aprovação e cancelamento de planos de voo.")
+System(sistemaVoos, "Sistema de Gestão de Planos de Voo", "Backend com API REST: elaboração de percursos, validação de regras de operação e reserva atômica de slots.")
+
+Rel(operador, sistemaVoos, "Elabora percurso, valida, aprova e cancela planos de voo", "HTTPS / JSON")
+@enduml

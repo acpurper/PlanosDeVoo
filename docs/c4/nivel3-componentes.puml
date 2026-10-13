@@ -1,0 +1,78 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+UpdateElementStyle("component", $bgColor="#8E24AA", $fontColor="#ffffff", $borderColor="#5E35B1")
+UpdateElementStyle("containerDb", $bgColor="#311B92", $fontColor="#ffffff", $borderColor="#1A237E")
+UpdateElementStyle("external_system", $bgColor="#9E9E9E", $fontColor="#ffffff", $borderColor="#616161")
+UpdateRelStyle($lineColor="#6A1B9A", $textColor="#4A148C")
+
+System_Ext(cliente, "Cliente HTTP / Swagger UI")
+
+Container_Boundary(api, "Backend API (Spring Boot)") {
+    Boundary(infraApi, "infrastructure/api") {
+        Component(planoCtrl, "PlanoDeVooController", "Spring REST Controller", "POST /planos, /trechos, /validacao, /aprovacao, /cancelamento; GET /planos/{id}")
+        Component(handler, "ApiExceptionHandler", "@RestControllerAdvice", "Exceções -> RFC 7807 (400, 404, 409, 422)")
+    }
+    Boundary(app, "application/usecases") {
+        Component(criarUC, "CriarPlanoUseCase", "Application Use Case", "UC02: cria plano EM_EDICAO")
+        Component(editarUC, "EditarPercursoUseCase", "Application Use Case", "UC03: inclui, altera e remove trechos")
+        Component(validarUC, "ValidarPlanoUseCase", "Application Use Case", "UC06: valida sem gravar")
+        Component(aprovarUC, "AprovarPlanoUseCase", "Application Use Case, @Transactional", "UC07: revalida e reserva tudo ou nada")
+        Component(cancelarUC, "CancelarPlanoUseCase", "Application Use Case, @Transactional", "UC11: cancela e libera reservas")
+        Component(consultarUC, "ConsultarPlanoUseCase", "Application Use Case", "Suporte: plano com trechos e reservas")
+    }
+    Boundary(dom, "domain") {
+        Component(dominio, "Modelo de Domínio", "model/, model/aeronave/, model/reserva/", "PlanoDeVoo (raiz), Trecho, Pouso, Aerovia, Aeroporto, Vaga, Altitude, SlotHorario, Aeronave + RegraOperacao (Strategy), Reserva")
+        Component(planoPort, "PlanoDeVooRepositoryPort", "Porta (interface)", "Persistência do agregado")
+        Component(reservaPort, "ReservaRepositoryPort", "Porta (interface)", "Reservas e VerificadorDisponibilidade")
+        Component(malhaPort, "MalhaRepositoryPort", "Porta (interface)", "Aeroportos, aerovias, pilotos e frota")
+    }
+    Boundary(infraPers, "infrastructure/persistence") {
+        Component(planoAd, "PlanoDeVooRepositoryAdapter", "Adapter + PlanoMapper", "Entidades JPA <-> agregado; SELECT ... FOR UPDATE")
+        Component(reservaAd, "ReservaRepositoryAdapter", "Adapter", "INSERT + flush; UNIQUE violada -> ConflitoReservaException")
+        Component(malhaAd, "MalhaRepositoryAdapter", "Adapter + MalhaMapper", "Leitura da malha e da frota")
+    }
+    Boundary(infraCfg, "infrastructure/config") {
+        Component(clock, "RelogioConfig", "@Configuration", "java.time.Clock injetável (app.relogio-fixo)")
+        Component(runner, "DadosIniciaisRunner", "ApplicationRunner", "Cria e aprova os planos iniciais pelos casos de uso")
+    }
+}
+
+ContainerDb(db, "Banco de Dados", "PostgreSQL 16")
+
+Rel(cliente, planoCtrl, "JSON / HTTP")
+Rel(planoCtrl, criarUC, "Invoca")
+Rel(planoCtrl, editarUC, "Invoca")
+Rel(planoCtrl, validarUC, "Invoca")
+Rel(planoCtrl, aprovarUC, "Invoca")
+Rel(planoCtrl, cancelarUC, "Invoca")
+Rel(planoCtrl, consultarUC, "Invoca")
+
+Rel(aprovarUC, validarUC, "«include» UC06")
+Rel(criarUC, dominio, "PlanoDeVoo.criar")
+Rel(editarUC, dominio, "adicionar/alterar/removerTrecho")
+Rel(validarUC, dominio, "PlanoDeVoo.validar")
+Rel(aprovarUC, dominio, "PlanoDeVoo.aprovar -> reservas")
+Rel(cancelarUC, dominio, "PlanoDeVoo.cancelar")
+Rel(cancelarUC, clock, "agora")
+
+Rel(criarUC, malhaPort, "Usa")
+Rel(editarUC, malhaPort, "Usa")
+Rel(criarUC, planoPort, "Usa")
+Rel(editarUC, planoPort, "Usa")
+Rel(validarUC, reservaPort, "Consulta ocupação")
+Rel(aprovarUC, planoPort, "Bloqueia e salva")
+Rel(aprovarUC, reservaPort, "Grava reservas")
+Rel(cancelarUC, reservaPort, "Remove reservas")
+Rel(consultarUC, planoPort, "Usa")
+Rel(runner, criarUC, "Invoca")
+Rel(runner, editarUC, "Invoca")
+Rel(runner, aprovarUC, "Invoca")
+
+Rel_U(planoAd, planoPort, "Implementa")
+Rel_U(reservaAd, reservaPort, "Implementa")
+Rel_U(malhaAd, malhaPort, "Implementa")
+Rel(planoAd, db, "SQL / JPA")
+Rel(reservaAd, db, "SQL / JPA")
+Rel(malhaAd, db, "SQL / JPA")
+@enduml

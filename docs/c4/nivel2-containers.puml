@@ -1,0 +1,23 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+UpdateElementStyle("person", $bgColor="#4A148C", $fontColor="#ffffff", $borderColor="#311B92")
+UpdateElementStyle("external_system", $bgColor="#9E9E9E", $fontColor="#ffffff", $borderColor="#616161")
+UpdateElementStyle("container", $bgColor="#7B1FA2", $fontColor="#ffffff", $borderColor="#4A148C")
+UpdateElementStyle("containerDb", $bgColor="#311B92", $fontColor="#ffffff", $borderColor="#1A237E")
+UpdateRelStyle($lineColor="#6A1B9A", $textColor="#4A148C")
+
+Person(operador, "Operador de Voo", "Usuário do sistema")
+
+' Correção: o cliente fica FORA da fronteira do sistema; o escopo do trabalho é só o backend.
+System_Ext(cliente, "Cliente HTTP / Swagger UI", "Swagger UI servido pela API, VS Code REST Client (docs/demo.http), curl ou Postman")
+
+System_Boundary(c1, "Sistema de Gestão de Planos de Voo") {
+    Container(api, "Backend API", "Java 21 / Spring Boot 3.5", "API REST (UC02, UC03, UC06, UC07, UC11), validação de domínio, controle transacional das reservas e documentação OpenAPI.")
+    ContainerDb(db, "Banco de Dados Relacional", "PostgreSQL 16 (Docker Compose)", "Malha, vagas, frota, pilotos, planos, trechos e reservas por slot com restrições UNIQUE. Esquema e carga pelo Flyway.")
+}
+
+Rel(operador, cliente, "Usa")
+Rel(cliente, api, "Requisições REST", "JSON / HTTP :8080")
+Rel(api, db, "Lê e grava dados e reservas", "JDBC / JPA :5432")
+@enduml
