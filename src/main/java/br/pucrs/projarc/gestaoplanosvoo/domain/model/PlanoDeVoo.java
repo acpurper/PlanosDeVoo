@@ -14,7 +14,9 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.repository.VerificadorDisponibili
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -215,14 +217,38 @@ public class PlanoDeVoo {
         }
     }
 
+    /** Uso de uma altitude de uma aerovia num slot; a mesma chave da UNIQUE de reserva_aerovia. */
+    private record UsoAltitude(String aeroviaId, Altitude altitude, SlotHorario slot) {
+    }
+
+    /** Uso de uma vaga num slot; a mesma chave da UNIQUE de reserva_vaga. */
+    private record UsoVaga(Vaga vaga, SlotHorario slot) {
+    }
+
+    /**
+     * Cada recurso precisa estar livre em todos os slots, tanto em relação às reservas já gravadas (outros planos)
+     * quanto aos trechos anteriores deste mesmo plano. As duas checagens são independentes: um mesmo slot pode
+     * gerar as duas violações.
+     */
     private void validarDisponibilidade(VerificadorDisponibilidade disponibilidade, List<Violacao> violacoes) {
         double velocidade = aeronave.getVelocidadeCruzeiroKmh();
+        // recurso -> ordem do primeiro trecho deste plano que o usa
+        Map<UsoAltitude, Integer> altitudesUsadas = new HashMap<>();
+        Map<UsoVaga, Integer> vagasUsadas = new HashMap<>();
         for (Trecho trecho : trechos) {
+            String aeroviaId = trecho.getAerovia().getId();
+            int pes = trecho.getAltitude().pes();
             for (SlotHorario slot : trecho.slots(velocidade)) {
-                if (disponibilidade.altitudeOcupada(trecho.getAerovia().getId(), trecho.getAltitude(), slot)) {
+                if (disponibilidade.altitudeOcupada(aeroviaId, trecho.getAltitude(), slot)) {
                     violacoes.add(new Violacao(CodigoViolacao.ALTITUDE_OCUPADA, trecho.getOrdem(),
-                            "Altitude " + trecho.getAltitude().pes() + " de " + trecho.getAerovia().getId()
-                                    + " já reservada no slot " + slot.inicio() + "."));
+                            "Altitude " + pes + " de " + aeroviaId + " já reservada no slot " + slot.inicio() + "."));
+                }
+                Integer outroTrecho = altitudesUsadas.putIfAbsent(new UsoAltitude(aeroviaId, trecho.getAltitude(), slot),
+                        trecho.getOrdem());
+                if (outroTrecho != null) {
+                    violacoes.add(new Violacao(CodigoViolacao.ALTITUDE_OCUPADA, trecho.getOrdem(),
+                            "Altitude " + pes + " de " + aeroviaId + " já usada pelo trecho " + outroTrecho
+                                    + " deste plano no slot " + slot.inicio() + "."));
                 }
             }
             Pouso pouso = trecho.getPouso().orElse(null);
@@ -231,6 +257,12 @@ public class PlanoDeVoo {
                     if (disponibilidade.vagaOcupada(pouso.vaga(), slot)) {
                         violacoes.add(new Violacao(CodigoViolacao.VAGA_OCUPADA, trecho.getOrdem(),
                                 "Vaga " + pouso.vaga() + " já reservada no slot " + slot.inicio() + "."));
+                    }
+                    Integer outroTrecho = vagasUsadas.putIfAbsent(new UsoVaga(pouso.vaga(), slot), trecho.getOrdem());
+                    if (outroTrecho != null) {
+                        violacoes.add(new Violacao(CodigoViolacao.VAGA_OCUPADA, trecho.getOrdem(),
+                                "Vaga " + pouso.vaga() + " já usada pelo pouso do trecho " + outroTrecho
+                                        + " deste plano no slot " + slot.inicio() + "."));
                     }
                 }
             }

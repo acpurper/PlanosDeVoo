@@ -146,6 +146,31 @@ class PlanoDeVooIT {
     }
 
     @Test
+    void conflitoEntreTrechosDoProprioPlanoDa422ENao409() {
+        // PR-AZA a 30.000 pés: R1 09:00→09:26, R8 09:26→09:52, R1 09:52→10:18, R4 10:18→10:36.
+        // Os dois usos de R1 caem no slot das 09h; antes da correção a UNIQUE falhava na gravação (409 falso).
+        long id = criarPlano("PR-AZA", "POA", "CWB", "2026-12-06T09:00");
+        adicionarTrecho(id, "R1", 30_000, "2026-12-06T09:00", null, null);
+        adicionarTrecho(id, "R8", 30_000, "2026-12-06T09:26", null, null);
+        adicionarTrecho(id, "R1", 30_000, "2026-12-06T09:52", null, null);
+        adicionarTrecho(id, "R4", 30_000, "2026-12-06T10:18", 1, 30);
+        int antes = totalReservas();
+
+        ResponseEntity<Map<String, Object>> validacao = post("/planos/" + id + "/validacao");
+        assertThat(validacao.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(validacao.getBody()).containsEntry("valido", false);
+        assertThat(validacao.getBody().get("violacoes").toString())
+                .contains("ALTITUDE_OCUPADA", "já usada pelo trecho 1 deste plano");
+
+        ResponseEntity<Map<String, Object>> aprovacao = post("/planos/" + id + "/aprovacao");
+        assertThat(aprovacao.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(aprovacao.getBody()).containsEntry("codigo", "PLANO_INVALIDO");
+        assertThat(reservasDoPlano(id)).isZero();
+        assertThat(totalReservas()).isEqualTo(antes);
+        assertThat(situacao(id)).isEqualTo("EM_EDICAO");
+    }
+
+    @Test
     void aprovacoesConcorrentesDoMesmoSlotResultamEmUmaAprovadaEUmaConflito() throws Exception {
         // dois planos válidos que disputam R6 a 33.000 no slot das 20h; vagas diferentes em GRU
         long a = criarPlano("PR-AZA", "CWB", "GRU", "2026-12-03T20:00");

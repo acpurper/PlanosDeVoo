@@ -123,6 +123,12 @@ adaptador converte a `DataIntegrityViolationException` em `ConflitoReservaExcept
 inteira é desfeita. Nenhuma reserva parcial permanece. Isso é testado com duas aprovações simultâneas
 reais (`PlanoDeVooIT`).
 
+A validação também confere conflitos **entre trechos do próprio plano**. Por exemplo, um percurso que
+passa duas vezes por R1 na mesma altitude dentro da mesma hora, ou dois pousos na mesma vaga no mesmo
+slot. Nesses casos ela gera `ALTITUDE_OCUPADA` ou `VAGA_OCUPADA`, com uma mensagem que cita o trecho que
+usou o recurso antes. Sem essa checagem, o plano passaria na validação e a UNIQUE só falharia na gravação,
+com um 409 que atribuía o conflito a "outro plano". Agora o caso responde 422 com a lista de violações.
+
 **Alternativas.**
 - *Só verificar e depois inserir.* Duas aprovações simultâneas poderiam passar na verificação e gravar as
   duas.
