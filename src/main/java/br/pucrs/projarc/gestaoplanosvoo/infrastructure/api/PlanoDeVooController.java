@@ -27,10 +27,9 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
 
-/** Adaptador de entrada: converte HTTP em chamadas aos casos de uso. Sem regra de negócio aqui. */
 @RestController
 @RequestMapping("/planos")
-@Tag(name = "Planos de voo", description = "UC02, UC03, UC06, UC07 e UC11")
+@Tag(name = "Planos de voo")
 public class PlanoDeVooController {
 
     private final CriarPlanoUseCase criarPlano;
@@ -52,7 +51,7 @@ public class PlanoDeVooController {
     }
 
     @PostMapping
-    @Operation(summary = "UC02 — Criar plano", description = "O plano nasce EM_EDICAO e sem trechos.")
+    @Operation(summary = "Criar plano de voo")
     @ApiResponse(responseCode = "201", description = "Plano criado")
     @ApiResponse(responseCode = "404", description = "Piloto, aeronave ou aeroporto inexistente")
     @ApiResponse(responseCode = "422", description = "Origem igual ao destino")
@@ -63,7 +62,7 @@ public class PlanoDeVooController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Consultar plano", description = "Trechos, horários calculados, situação e reservas.")
+    @Operation(summary = "Consultar plano de voo")
     @ApiResponse(responseCode = "200", description = "Plano encontrado")
     @ApiResponse(responseCode = "404", description = "Plano inexistente")
     public PlanoResponse consultar(@PathVariable Long id) {
@@ -71,8 +70,8 @@ public class PlanoDeVooController {
     }
 
     @PostMapping("/{id}/trechos")
-    @Operation(summary = "UC03 — Acrescentar trecho ao fim do percurso")
-    @ApiResponse(responseCode = "201", description = "Trecho acrescentado; devolve o plano com os horários calculados")
+    @Operation(summary = "Adicionar trecho ao percurso")
+    @ApiResponse(responseCode = "201", description = "Trecho acrescentado com sucesso")
     @ApiResponse(responseCode = "404", description = "Plano, aerovia ou vaga inexistente")
     @ApiResponse(responseCode = "409", description = "Plano fora de edição")
     @ApiResponse(responseCode = "422", description = "Altitude inválida")
@@ -84,7 +83,7 @@ public class PlanoDeVooController {
     }
 
     @PutMapping("/{id}/trechos/{ordem}")
-    @Operation(summary = "UC03 — Substituir o trecho de uma ordem")
+    @Operation(summary = "Alterar trecho do percurso")
     @ApiResponse(responseCode = "200", description = "Trecho substituído")
     @ApiResponse(responseCode = "404", description = "Plano, trecho, aerovia ou vaga inexistente")
     @ApiResponse(responseCode = "409", description = "Plano fora de edição")
@@ -94,8 +93,8 @@ public class PlanoDeVooController {
     }
 
     @DeleteMapping("/{id}/trechos/{ordem}")
-    @Operation(summary = "UC03 — Remover o trecho de uma ordem", description = "Os trechos seguintes são renumerados.")
-    @ApiResponse(responseCode = "200", description = "Trecho removido; devolve o plano")
+    @Operation(summary = "Remover trecho do percurso")
+    @ApiResponse(responseCode = "200", description = "Trecho removido")
     @ApiResponse(responseCode = "404", description = "Plano ou trecho inexistente")
     @ApiResponse(responseCode = "409", description = "Plano fora de edição")
     public PlanoResponse removerTrecho(@PathVariable Long id, @PathVariable int ordem) {
@@ -103,8 +102,8 @@ public class PlanoDeVooController {
     }
 
     @PostMapping("/{id}/validacao")
-    @Operation(summary = "UC06 — Validar plano", description = "Não muda a situação nem reserva recursos. Sempre 200 com o laudo.")
-    @ApiResponse(responseCode = "200", description = "Laudo da validação, válido ou não")
+    @Operation(summary = "Validar plano de voo")
+    @ApiResponse(responseCode = "200", description = "Resultado da validação")
     @ApiResponse(responseCode = "404", description = "Plano inexistente")
     @ApiResponse(responseCode = "409", description = "Plano fora de edição")
     public ResultadoValidacaoResponse validar(@PathVariable Long id) {
@@ -112,18 +111,18 @@ public class PlanoDeVooController {
     }
 
     @PostMapping("/{id}/aprovacao")
-    @Operation(summary = "UC07 — Aprovar plano", description = "Revalida e reserva tudo ou nada.")
-    @ApiResponse(responseCode = "200", description = "Plano APROVADO com as reservas")
+    @Operation(summary = "Aprovar plano de voo")
+    @ApiResponse(responseCode = "200", description = "Plano aprovado com as reservas")
     @ApiResponse(responseCode = "404", description = "Plano inexistente")
-    @ApiResponse(responseCode = "409", description = "Plano fora de edição ou conflito concorrente de reserva")
-    @ApiResponse(responseCode = "422", description = "Plano com violações; continua EM_EDICAO")
+    @ApiResponse(responseCode = "409", description = "Plano fora de edição ou conflito de reserva")
+    @ApiResponse(responseCode = "422", description = "Plano com violações")
     public PlanoResponse aprovar(@PathVariable Long id) {
         return aprovarPlano.executar(id);
     }
 
     @PostMapping("/{id}/cancelamento")
-    @Operation(summary = "UC11 — Cancelar plano", description = "Só aprovado com partida futura; libera as reservas.")
-    @ApiResponse(responseCode = "200", description = "Plano CANCELADO, sem reservas")
+    @Operation(summary = "Cancelar plano de voo")
+    @ApiResponse(responseCode = "200", description = "Plano cancelado")
     @ApiResponse(responseCode = "404", description = "Plano inexistente")
     @ApiResponse(responseCode = "409", description = "Plano não aprovado ou voo já executado")
     public PlanoResponse cancelar(@PathVariable Long id) {

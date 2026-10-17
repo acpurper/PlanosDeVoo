@@ -7,7 +7,6 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.util.Objects;
 
-/** Ligação orientada origem → destino. Imutável: não há métodos de alteração (enunciado, seção 2). */
 public final class Aerovia {
 
     private final String id;
@@ -33,10 +32,6 @@ public final class Aerovia {
     public Aeroporto getDestino() { return destino; }
     public double getDistanciaKm() { return distanciaKm; }
 
-    /**
-     * Tempo para percorrer a aerovia: distância / velocidade, em minutos, arredondado para cima.
-     * Usa BigDecimal para que contas exatas (ex.: 360 km a 600 km/h = 36 min) não virem 37 por erro de ponto flutuante.
-     */
     public Duration duracao(double velocidadeKmh) {
         long minutos = BigDecimal.valueOf(distanciaKm)
                 .multiply(BigDecimal.valueOf(60))

@@ -5,7 +5,6 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.model.CodigoViolacao;
 
 import java.time.LocalDateTime;
 
-/** Exige altitude igual ou superior a um mínimo (ex.: passageiros, 28.000 pés). */
 public final class AltitudeMinima implements RegraOperacao {
 
     private final int minimaPes;

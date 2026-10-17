@@ -9,7 +9,6 @@ import java.time.Duration;
 import static br.pucrs.projarc.gestaoplanosvoo.domain.Malha.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Regras 1 e 2: duração = distância / velocidade, em minutos arredondados para cima; chegada derivada. */
 class TempoEChegadaTest {
 
     @Test

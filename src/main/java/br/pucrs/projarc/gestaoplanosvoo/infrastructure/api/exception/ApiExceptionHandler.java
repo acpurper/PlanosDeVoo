@@ -23,11 +23,6 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 import java.net.URI;
 import java.util.Map;
 
-/**
- * Converte exceções em respostas RFC 7807 (application/problem+json).
- * 404 = não existe; 409 = situação do plano ou conflito de reserva; 422 = regra de negócio violada.
- * Erros de formato do JSON e de Bean Validation (400) ficam com o tratamento padrão herdado.
- */
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
@@ -76,7 +71,6 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return p;
     }
 
-    /** 400 com a lista dos campos inválidos, para o cliente saber o que corrigir. */
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException e, HttpHeaders headers,
                                                                   HttpStatusCode status, WebRequest request) {

@@ -9,10 +9,6 @@ import org.junit.jupiter.api.Test;
 import static br.pucrs.projarc.gestaoplanosvoo.domain.Malha.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Regra 7: percurso e horários. PP-JAT (600 km/h): R1 = 37 min, R4 = 25 min, R6 = 36 min.
- * Percurso de referência: POA -R1-> FLN (sobrevoo) -R4-> CWB (pouso).
- */
 class PercursoTest {
 
     private PlanoDeVoo planoValido() {

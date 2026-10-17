@@ -9,7 +9,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** Regra 4: 25.000 a 35.000 pés, em passos de 1.000. */
 class AltitudeTest {
 
     @ParameterizedTest

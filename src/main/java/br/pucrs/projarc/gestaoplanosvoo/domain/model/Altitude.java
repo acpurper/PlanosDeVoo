@@ -5,7 +5,6 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.exception.RegraDeNegocioException
 import java.util.List;
 import java.util.stream.IntStream;
 
-/** Nível de voo: 25.000 a 35.000 pés, inclusive, em passos de 1.000 (enunciado, 5.1). */
 public record Altitude(int pes) {
 
     public static final int MINIMA = 25_000;

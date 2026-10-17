@@ -20,7 +20,6 @@
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <springdoc.version>2.8.17</springdoc.version>
-        <!-- Permite rodar em JDKs mais novos que o suportado oficialmente pelo Byte Buddy (proxies do Hibernate). -->
         <bytebuddy.flag>-Dnet.bytebuddy.experimental=true</bytebuddy.flag>
     </properties>
 
@@ -87,7 +86,6 @@
                     <jvmArguments>${bytebuddy.flag}</jvmArguments>
                 </configuration>
             </plugin>
-            <!-- Testes de unidade (*Test) rodam no surefire; testes de integração (*IT) no failsafe, em "verify". -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>

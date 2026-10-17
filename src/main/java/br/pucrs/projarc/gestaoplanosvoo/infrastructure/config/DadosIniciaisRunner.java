@@ -18,13 +18,6 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/**
- * Carga dos planos iniciais. Roda só com o banco sem planos e usa os próprios casos de uso
- * (criar, editar, aprovar), então as reservas são sempre consequência de planos aprovados válidos.
- *
- * <p>Ocupação na data de referência: R1, R2, R3, R4, R5, R7 e R8 (7 de 8 aerovias); R6 fica livre.
- * Cada aerovia tem uma única altitude ocupada, então sempre há alternativa para a demonstração.
- */
 @Component
 public class DadosIniciaisRunner implements ApplicationRunner {
 

@@ -2,7 +2,6 @@ package br.pucrs.projarc.gestaoplanosvoo.domain.model;
 
 import java.util.Objects;
 
-/** Responsável pelo plano. Sem regras próprias (enunciado, seção 4). */
 public final class Piloto {
 
     private final Long id;

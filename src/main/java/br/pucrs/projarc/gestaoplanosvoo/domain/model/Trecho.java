@@ -7,10 +7,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-/**
- * Uso de uma aerovia dentro do percurso. O usuário informa a entrada; a chegada é sempre derivada
- * (entrada + distância / velocidade de cruzeiro) e nunca vem do cliente.
- */
 public final class Trecho {
 
     private final int ordem;
@@ -49,18 +45,15 @@ public final class Trecho {
         return horarioEntrada.plus(duracao(velocidadeKmh));
     }
 
-    /** Quando a aeronave pode entrar na próxima aerovia: a chegada (sobrevoo) ou a chegada + permanência (pouso). */
     public LocalDateTime horarioLiberacao(double velocidadeKmh) {
         LocalDateTime chegada = horarioChegada(velocidadeKmh);
         return pouso == null ? chegada : pouso.fimPermanencia(chegada);
     }
 
-    /** Slots de uso da aerovia: [entrada, chegada). */
     public List<SlotHorario> slots(double velocidadeKmh) {
         return SlotHorario.cobrindo(horarioEntrada, horarioChegada(velocidadeKmh));
     }
 
-    /** Slots de ocupação da vaga do pouso; vazio em caso de sobrevoo. */
     public List<SlotHorario> slotsPouso(double velocidadeKmh) {
         return pouso == null ? List.of() : pouso.slots(horarioChegada(velocidadeKmh));
     }

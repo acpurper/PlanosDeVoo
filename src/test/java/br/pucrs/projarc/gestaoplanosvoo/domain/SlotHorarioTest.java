@@ -8,7 +8,6 @@ import static br.pucrs.projarc.gestaoplanosvoo.domain.Malha.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** Regra 3: slots de 1 h alinhados à hora cheia, intervalo semiaberto [início, fim). */
 class SlotHorarioTest {
 
     @Test

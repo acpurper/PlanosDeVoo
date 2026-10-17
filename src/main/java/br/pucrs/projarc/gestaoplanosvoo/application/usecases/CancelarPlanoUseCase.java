@@ -11,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 
-/** UC11 — Cancelar plano aprovado com partida futura, liberando as reservas na mesma transação. */
 @Service
 public class CancelarPlanoUseCase {
 

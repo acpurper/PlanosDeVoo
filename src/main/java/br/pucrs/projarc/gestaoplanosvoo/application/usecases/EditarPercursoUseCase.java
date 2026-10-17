@@ -14,10 +14,6 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.repository.PlanoDeVooRepositoryPo
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * UC03 — Editar percurso: acrescentar trecho no fim, substituir ou remover o trecho de uma ordem.
- * Só em EM_EDICAO; não reserva recursos.
- */
 @Service
 public class EditarPercursoUseCase {
 
@@ -64,7 +60,6 @@ public class EditarPercursoUseCase {
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Aerovia " + id + " não encontrada."));
     }
 
-    /** A vaga é procurada no aeroporto de destino da aerovia do trecho. */
     private Pouso pouso(Aerovia aerovia, PousoRequest req) {
         if (req == null) {
             return null;

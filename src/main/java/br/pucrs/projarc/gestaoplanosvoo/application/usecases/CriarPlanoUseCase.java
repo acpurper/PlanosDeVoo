@@ -12,7 +12,6 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.repository.PlanoDeVooRepositoryPo
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** UC02 — Criar plano de voo: nasce EM_EDICAO e sem trechos. */
 @Service
 public class CriarPlanoUseCase {
 

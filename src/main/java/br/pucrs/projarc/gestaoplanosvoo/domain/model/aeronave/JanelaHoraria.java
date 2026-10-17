@@ -6,10 +6,6 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.model.CodigoViolacao;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
-/**
- * Todo o uso [ini, fim) precisa caber na janela [inicio, fim) do dia em que começa
- * (ex.: carga, 00:00 inclusive a 06:00 exclusive). Terminar exatamente às 06:00 é permitido.
- */
 public final class JanelaHoraria implements RegraOperacao {
 
     private final LocalTime inicio;

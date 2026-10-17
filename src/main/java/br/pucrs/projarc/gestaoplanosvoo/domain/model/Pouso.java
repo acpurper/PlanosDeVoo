@@ -6,7 +6,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 
-/** Parada num aeroporto: vaga pretendida e permanência. A ausência de pouso no trecho é um sobrevoo. */
 public record Pouso(Vaga vaga, int permanenciaMin) {
 
     public Pouso {
@@ -20,7 +19,6 @@ public record Pouso(Vaga vaga, int permanenciaMin) {
         return chegada.plusMinutes(permanenciaMin);
     }
 
-    /** Slots em que a vaga fica ocupada: [chegada, chegada + permanência). */
     public List<SlotHorario> slots(LocalDateTime chegada) {
         return SlotHorario.cobrindo(chegada, fimPermanencia(chegada));
     }

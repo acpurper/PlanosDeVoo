@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-/** Ponto da malha aérea. Compõe suas vagas; a quantidade de vagas é o tamanho da lista. */
 public final class Aeroporto {
 
     private final String codigo;

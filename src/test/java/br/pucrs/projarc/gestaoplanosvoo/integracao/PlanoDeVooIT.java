@@ -34,11 +34,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Testes de integração contra um PostgreSQL real (Testcontainers), passando pela API REST.
- * O "agora" é fixado em 2026-11-01 para que a data de referência (2026-12-01) seja sempre futura.
- * Cada teste usa um dia próprio para não depender dos outros nem da carga inicial.
- */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = "app.relogio-fixo=2026-11-01T00:00")
@@ -48,7 +43,6 @@ class PlanoDeVooIT {
     @ServiceConnection
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16");
 
-    /** Quando definida, faz as aprovações esperarem umas pelas outras logo antes de gravar as reservas. */
     static volatile CyclicBarrier barreira;
 
     @TestConfiguration
@@ -147,8 +141,6 @@ class PlanoDeVooIT {
 
     @Test
     void conflitoEntreTrechosDoProprioPlanoDa422ENao409() {
-        // PR-AZA a 30.000 pés: R1 09:00→09:26, R8 09:26→09:52, R1 09:52→10:18, R4 10:18→10:36.
-        // Os dois usos de R1 caem no slot das 09h; antes da correção a UNIQUE falhava na gravação (409 falso).
         long id = criarPlano("PR-AZA", "POA", "CWB", "2026-12-06T09:00");
         adicionarTrecho(id, "R1", 30_000, "2026-12-06T09:00", null, null);
         adicionarTrecho(id, "R8", 30_000, "2026-12-06T09:26", null, null);
@@ -243,8 +235,6 @@ class PlanoDeVooIT {
                 .getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(post("/planos/" + id + "/validacao").getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
-
-    // ------------------------------------------------------------------ apoio
 
     private static final ParameterizedTypeReference<Map<String, Object>> MAPA = new ParameterizedTypeReference<>() {
     };

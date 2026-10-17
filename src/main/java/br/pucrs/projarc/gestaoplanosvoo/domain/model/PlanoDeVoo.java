@@ -19,10 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * Raiz do agregado. Controla o ciclo de vida, é dono do percurso (trechos e pousos) e das reservas,
- * e concentra a validação. Toda mutação passa por aqui e só é aceita em EM_EDICAO.
- */
 public class PlanoDeVoo {
 
     private final Long id;
@@ -51,7 +47,6 @@ public class PlanoDeVoo {
         this.versao = versao;
     }
 
-    /** UC02: o plano nasce em edição e sem trechos. */
     public static PlanoDeVoo criar(Piloto piloto, Aeronave aeronave, Aeroporto origem, Aeroporto destino,
                                    LocalDateTime dataHoraPartida) {
         if (origem.equals(destino)) {
@@ -62,16 +57,12 @@ public class PlanoDeVoo {
                 SituacaoPlano.EM_EDICAO, List.of(), List.of(), null);
     }
 
-    /** Recria um plano já persistido, sem reaplicar regras de criação. Uso exclusivo da persistência. */
     public static PlanoDeVoo reconstituir(Long id, Piloto piloto, Aeronave aeronave, Aeroporto origem, Aeroporto destino,
                                           LocalDateTime dataHoraPartida, SituacaoPlano situacao,
                                           List<Trecho> trechos, List<Reserva> reservas, Long versao) {
         return new PlanoDeVoo(id, piloto, aeronave, origem, destino, dataHoraPartida, situacao, trechos, reservas, versao);
     }
 
-    // ------------------------------------------------------------------ UC03: edição do percurso
-
-    /** Acrescenta um trecho ao final do percurso. */
     public Trecho adicionarTrecho(Aerovia aerovia, Altitude altitude, LocalDateTime horarioEntrada, Pouso pouso) {
         exigirEmEdicao("alterado");
         Trecho trecho = new Trecho(trechos.size() + 1, aerovia, altitude, horarioEntrada, pouso);
@@ -79,7 +70,6 @@ public class PlanoDeVoo {
         return trecho;
     }
 
-    /** Substitui o trecho da ordem indicada, mantendo a ordem. */
     public Trecho alterarTrecho(int ordem, Aerovia aerovia, Altitude altitude, LocalDateTime horarioEntrada, Pouso pouso) {
         exigirEmEdicao("alterado");
         int indice = indiceDoTrecho(ordem);
@@ -88,7 +78,6 @@ public class PlanoDeVoo {
         return trecho;
     }
 
-    /** Remove o trecho da ordem indicada e renumera os seguintes. */
     public void removerTrecho(int ordem) {
         exigirEmEdicao("alterado");
         trechos.remove(indiceDoTrecho(ordem));
@@ -97,12 +86,6 @@ public class PlanoDeVoo {
         }
     }
 
-    // ------------------------------------------------------------------ UC06: validação
-
-    /**
-     * Verifica percurso, horários, regras da categoria, autonomia e disponibilidade atual dos recursos.
-     * Não altera o plano nem reserva nada.
-     */
     public ResultadoValidacao validar(VerificadorDisponibilidade disponibilidade) {
         exigirEmEdicao("validado");
         List<Violacao> violacoes = new ArrayList<>();
@@ -217,22 +200,14 @@ public class PlanoDeVoo {
         }
     }
 
-    /** Uso de uma altitude de uma aerovia num slot; a mesma chave da UNIQUE de reserva_aerovia. */
     private record UsoAltitude(String aeroviaId, Altitude altitude, SlotHorario slot) {
     }
 
-    /** Uso de uma vaga num slot; a mesma chave da UNIQUE de reserva_vaga. */
     private record UsoVaga(Vaga vaga, SlotHorario slot) {
     }
 
-    /**
-     * Cada recurso precisa estar livre em todos os slots, tanto em relação às reservas já gravadas (outros planos)
-     * quanto aos trechos anteriores deste mesmo plano. As duas checagens são independentes: um mesmo slot pode
-     * gerar as duas violações.
-     */
     private void validarDisponibilidade(VerificadorDisponibilidade disponibilidade, List<Violacao> violacoes) {
         double velocidade = aeronave.getVelocidadeCruzeiroKmh();
-        // recurso -> ordem do primeiro trecho deste plano que o usa
         Map<UsoAltitude, Integer> altitudesUsadas = new HashMap<>();
         Map<UsoVaga, Integer> vagasUsadas = new HashMap<>();
         for (Trecho trecho : trechos) {
@@ -269,7 +244,6 @@ public class PlanoDeVoo {
         }
     }
 
-    /** Distância acumulada desde o último abastecimento ao fim de cada trecho. Sobrevoo acumula; pouso zera depois. */
     public List<Double> distanciasDesdeAbastecimento() {
         List<Double> acumuladas = new ArrayList<>();
         double acumulado = 0;
@@ -283,15 +257,6 @@ public class PlanoDeVoo {
         return acumuladas;
     }
 
-    // ------------------------------------------------------------------ UC07, UC10, UC11: ciclo de vida
-
-    /**
-     * UC07: revalida e, se tudo estiver certo, gera uma reserva por slot de cada trecho e de cada pouso
-     * e passa a APROVADO. A gravação das reservas (tudo ou nada) é responsabilidade do caso de uso.
-     *
-     * @return as reservas a gravar
-     * @throws PlanoInvalidoException se houver qualquer violação; o plano continua em edição
-     */
     public List<Reserva> aprovar(VerificadorDisponibilidade disponibilidade) {
         ResultadoValidacao resultado = validar(disponibilidade);
         if (!resultado.valido()) {
@@ -316,7 +281,6 @@ public class PlanoDeVoo {
         return List.copyOf(novas);
     }
 
-    /** UC11: só plano aprovado cuja partida ainda não ocorreu. As reservas deixam de pertencer ao plano. */
     public void cancelar(LocalDateTime agora) {
         if (situacao != SituacaoPlano.APROVADO) {
             throw new SituacaoInvalidaException("PLANO_NAO_CANCELAVEL",
@@ -330,13 +294,11 @@ public class PlanoDeVoo {
         reservas.clear();
     }
 
-    /** UC10: plano em edição passa a abandonado. Não há reservas a liberar. */
     public void abandonar() {
         exigirEmEdicao("abandonado");
         situacao = SituacaoPlano.ABANDONADO;
     }
 
-    /** Falha com 409 se o plano não estiver em edição. Permite checar antes de resolver referências da edição. */
     public void garantirEditavel() {
         exigirEmEdicao("alterado");
     }

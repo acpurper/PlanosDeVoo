@@ -1,6 +1,5 @@
 package br.pucrs.projarc.gestaoplanosvoo.domain.model;
 
-/** Códigos estáveis das violações de validação, usados pelos clientes da API. */
 public enum CodigoViolacao {
     PERCURSO_VAZIO,
     ORIGEM_INCOERENTE,

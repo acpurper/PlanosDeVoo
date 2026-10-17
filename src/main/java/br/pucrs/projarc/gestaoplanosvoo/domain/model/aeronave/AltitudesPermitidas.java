@@ -7,7 +7,6 @@ import java.time.LocalDateTime;
 import java.util.Set;
 import java.util.TreeSet;
 
-/** Só permite as altitudes listadas (ex.: particular, 25.000/26.000/27.000 pés). */
 public final class AltitudesPermitidas implements RegraOperacao {
 
     private final Set<Integer> pes;

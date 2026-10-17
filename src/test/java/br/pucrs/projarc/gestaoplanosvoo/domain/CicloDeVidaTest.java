@@ -18,7 +18,6 @@ import static br.pucrs.projarc.gestaoplanosvoo.domain.Malha.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** Situações do plano e edição do percurso. */
 class CicloDeVidaTest {
 
     private PlanoDeVoo planoValido() {

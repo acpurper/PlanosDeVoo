@@ -9,7 +9,6 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.repository.ReservaRepositoryPort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** UC06 — Validar plano: não muda a situação e não grava nada. */
 @Service
 public class ValidarPlanoUseCase {
 
@@ -28,7 +27,6 @@ public class ValidarPlanoUseCase {
         return ResultadoValidacaoResponse.de(planoId, validar(plano));
     }
 
-    /** Lógica de validação compartilhada com a aprovação (UC07 «include» UC06). */
     ResultadoValidacao validar(PlanoDeVoo plano) {
         return plano.validar(reservas);
     }

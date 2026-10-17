@@ -4,7 +4,6 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.model.SlotHorario;
 
 import java.util.Objects;
 
-/** Ocupação efetiva de um recurso num slot, criada somente na aprovação do plano. */
 public abstract class Reserva {
 
     private final Long id;
@@ -21,6 +20,5 @@ public abstract class Reserva {
     public Long getPlanoId() { return planoId; }
     public SlotHorario getSlot() { return slot; }
 
-    /** Descrição do recurso reservado, para mensagens e respostas. */
     public abstract String recurso();
 }

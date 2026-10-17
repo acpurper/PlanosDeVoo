@@ -2,7 +2,6 @@ package br.pucrs.projarc.gestaoplanosvoo.domain.model;
 
 import java.util.Objects;
 
-/** Posição de estacionamento de um aeroporto. Identificada pelo par (aeroporto, número). */
 public final class Vaga {
 
     private final Long id;

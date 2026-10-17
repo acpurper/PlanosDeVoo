@@ -10,7 +10,6 @@ public interface PlanoDeVooRepositoryPort {
 
     Optional<PlanoDeVoo> buscarPorId(Long id);
 
-    /** Busca bloqueando o plano até o fim da transação (aprovação e cancelamento). */
     Optional<PlanoDeVoo> buscarPorIdParaAtualizacao(Long id);
 
     boolean existeAlgum();

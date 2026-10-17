@@ -2,7 +2,6 @@ package br.pucrs.projarc.gestaoplanosvoo.domain.model;
 
 import java.util.List;
 
-/** Laudo da validação: reúne todas as violações encontradas, e não só a primeira. */
 public record ResultadoValidacao(List<Violacao> violacoes) {
 
     public ResultadoValidacao {

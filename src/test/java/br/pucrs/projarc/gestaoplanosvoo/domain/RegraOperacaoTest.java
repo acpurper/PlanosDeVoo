@@ -9,7 +9,6 @@ import org.junit.jupiter.api.Test;
 import static br.pucrs.projarc.gestaoplanosvoo.domain.Malha.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Regra 5: cada categoria tem sua estratégia de operação. */
 class RegraOperacaoTest {
 
     @Test

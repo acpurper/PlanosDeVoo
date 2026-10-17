@@ -13,7 +13,6 @@ import static br.pucrs.projarc.gestaoplanosvoo.domain.Malha.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** Regras 8 e 9: vaga do aeroporto certo e recursos livres em todos os slots. */
 class PousoEDisponibilidadeTest {
 
     @Test
@@ -138,7 +137,6 @@ class PousoEDisponibilidadeTest {
 
     @Test
     void resultadoAcumulaTodasAsViolacoes() {
-        // Regra 10: altitude proibida + horário incompatível + sem pouso final + altitude ocupada
         PlanoDeVoo plano = plano(PASSAGEIROS, POA, CWB, as(14, 0));
         plano.adicionarTrecho(R1, alt(27_000), as(14, 0), null);
         plano.adicionarTrecho(R4, alt(30_000), as(14, 0), null);

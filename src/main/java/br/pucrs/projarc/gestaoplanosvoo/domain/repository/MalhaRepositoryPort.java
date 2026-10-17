@@ -7,7 +7,6 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.model.aeronave.Aeronave;
 
 import java.util.Optional;
 
-/** Consulta dos dados pré-existentes (carregados por script): malha aérea, pilotos e frota. */
 public interface MalhaRepositoryPort {
 
     Optional<Aeroporto> buscarAeroporto(String codigo);

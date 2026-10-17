@@ -6,7 +6,6 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.repository.PlanoDeVooRepositoryPo
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Suporte mínimo para demonstrar os UCs desta entrega (o UC08 completo fica para a próxima). */
 @Service
 public class ConsultarPlanoUseCase {
 

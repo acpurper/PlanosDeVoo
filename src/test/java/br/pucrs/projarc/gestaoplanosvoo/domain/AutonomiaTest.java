@@ -9,7 +9,6 @@ import org.junit.jupiter.api.Test;
 import static br.pucrs.projarc.gestaoplanosvoo.domain.Malha.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Regra 6: distância desde o último pouso <= 85% da autonomia. PP-LEN: 700 km -> 595 km. */
 class AutonomiaTest {
 
     @Test

@@ -65,7 +65,6 @@ public class ReservaRepositoryAdapter implements ReservaRepositoryPort {
         try {
             reservasAerovia.saveAll(aerovias);
             reservasVaga.saveAll(vagas);
-            // Força os INSERTs agora: um conflito de unicidade precisa aparecer dentro da transação da aprovação.
             em.flush();
         } catch (DataIntegrityViolationException e) {
             throw new ConflitoReservaException(

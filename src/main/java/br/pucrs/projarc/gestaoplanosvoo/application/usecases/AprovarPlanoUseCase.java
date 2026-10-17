@@ -13,10 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/**
- * UC07 — Aprovar plano. Numa única transação: bloqueia o plano, revalida com a disponibilidade do momento
- * (mesma lógica do UC06), grava uma reserva por slot e passa a APROVADO. Qualquer falha desfaz tudo.
- */
 @Service
 public class AprovarPlanoUseCase {
 
@@ -36,7 +32,6 @@ public class AprovarPlanoUseCase {
         PlanoDeVoo plano = planos.buscarPorIdParaAtualizacao(planoId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Plano " + planoId + " não encontrado."));
 
-        // «include» UC06: violações -> 422 e o plano continua EM_EDICAO (nada foi gravado).
         ResultadoValidacao resultado = validarPlano.validar(plano);
         if (!resultado.valido()) {
             throw new PlanoInvalidoException(resultado);
@@ -44,8 +39,6 @@ public class AprovarPlanoUseCase {
 
         List<Reserva> novas = plano.aprovar(reservas);
         planos.salvar(plano);
-        // INSERT + flush: se outro plano levou um slot nesse meio-tempo, a UNIQUE falha,
-        // ConflitoReservaException sobe e a transação inteira é desfeita (409).
         reservas.salvarTodas(novas);
 
         return PlanoResponse.de(planos.buscarPorId(planoId).orElseThrow());
