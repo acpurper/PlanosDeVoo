@@ -1,0 +1,103 @@
+@startuml
+skinparam classAttributeIconSize 0
+hide empty members
+interface RegraOperacao {
+  +permite(alt : Altitude, ini : LocalDateTime, fim : LocalDateTime) : boolean
+}
+abstract class Aeronave {
+  prefixo : String
+  velocidadeCruzeiroKmh : double
+  autonomiaKm : double
+  +autonomiaSegura() : double
+  +podeOperar(alt : Altitude, ini : LocalDateTime, fim : LocalDateTime) : boolean
+}
+note top of Aeronave : prefixo é único
+class AeronaveParticular {
+  empresaManutencao : String
+}
+class AeronavePassageiros {
+  companhiaAerea : String
+  capacidadePassageiros : int
+}
+class AeronaveCarga {
+  companhiaAerea : String
+  capacidadeToneladas : double
+}
+Aeronave <|-- AeronaveParticular
+Aeronave <|-- AeronavePassageiros
+Aeronave <|-- AeronaveCarga
+Aeronave "*" --> "1..*" RegraOperacao : regras
+class Piloto {
+  id : Long
+  nome : String
+}
+enum SituacaoPlano {
+  EM_EDICAO
+  APROVADO
+  CANCELADO
+  ABANDONADO
+}
+class PlanoDeVoo {
+  id : Long
+  dataHoraPartida : LocalDateTime
+  situacao : SituacaoPlano
+  origem : Aeroporto
+  destino : Aeroporto
+  +validar() : ResultadoValidacao
+  +aprovar()
+  +cancelar()
+  +abandonar()
+}
+PlanoDeVoo "*" --> "1" Piloto
+PlanoDeVoo "*" --> "1" Aeronave : aeronave
+PlanoDeVoo ..> SituacaoPlano
+class Trecho {
+  ordem : int
+  altitude : Altitude
+  horarioEntrada : LocalDateTime
+  /horarioChegada : LocalDateTime
+  +slots() : List<SlotHorario>
+}
+note right of Trecho : /horarioChegada é\ncalculado pelo sistema
+class Pouso {
+  permanenciaMin : int
+  +slots() : List<SlotHorario>
+}
+PlanoDeVoo "1" *-- "1..*" Trecho : percurso [ordenado]
+Trecho "1" *-- "0..1" Pouso
+note right of Pouso : ausente = sobrevoo
+class Aerovia {
+  id : String
+  distanciaKm : double
+  +duracao(velKmh : double) : Duration
+}
+note top of Aerovia : id é único; imutável
+class Aeroporto {
+  codigo : String
+  nome : String
+}
+note top of Aeroporto : codigo é único
+class Vaga {
+  numero : int
+}
+Trecho "*" --> "1" Aerovia
+Aerovia "*" --> "1" Aeroporto : origem
+Aerovia "*" --> "1" Aeroporto : destino
+Aeroporto "1" *-- "1..*" Vaga
+Pouso "*" --> "1" Vaga : vaga pretendida
+abstract class Reserva {
+  slot : SlotHorario
+}
+class ReservaAerovia {
+  aerovia : Aerovia
+  altitude : Altitude
+}
+class ReservaVaga {
+  vaga : Vaga
+}
+Reserva <|-- ReservaAerovia
+Reserva <|-- ReservaVaga
+PlanoDeVoo "1" --> "0..*" Reserva : reservas
+note bottom of ReservaAerovia : único (aerovia, altitude, slot)
+note bottom of ReservaVaga : único (vaga, slot)
+@enduml

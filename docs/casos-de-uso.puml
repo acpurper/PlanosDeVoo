@@ -1,0 +1,29 @@
+@startuml
+left to right direction
+actor "Operador de Voo" as Operador
+rectangle "Sistema de Gestão de Planos de Voo" {
+  usecase "UC01 Consultar malha e recursos" as UC01
+  usecase "UC02 Criar plano" as UC02
+  usecase "UC03 Editar percurso" as UC03
+  usecase "UC04 Ver altitudes livres" as UC04
+  usecase "UC05 Ver vagas livres" as UC05
+  usecase "UC06 Validar plano" as UC06
+  usecase "UC07 Aprovar plano" as UC07
+  usecase "UC08 Consultar plano" as UC08
+  usecase "UC09 Listar por situação" as UC09
+  usecase "UC10 Abandonar plano" as UC10
+  usecase "UC11 Cancelar plano" as UC11
+}
+Operador --> UC01
+Operador --> UC02
+Operador --> UC03
+Operador --> UC04
+Operador --> UC05
+Operador --> UC06
+Operador --> UC07
+Operador --> UC08
+Operador --> UC09
+Operador --> UC10
+Operador --> UC11
+UC07 .> UC06 : <<include>>
+@enduml
