@@ -122,7 +122,11 @@ não pode ser demonstrado. Se ela já tiver passado, suba com `APP_RELOGIO_FIXO=
 - **Integração** (`PlanoDeVooIT`, com Testcontainers e PostgreSQL 16 real; precisa do Docker rodando):
   validar não cria reservas; aprovação com violação não grava nada; duas aprovações concorrentes do mesmo
   slot resultam em uma aprovada e outra com 409, sem reserva parcial; cancelar plano futuro libera as
-  reservas; cancelar plano passado responde 409; editar plano aprovado responde 409.
+  reservas; cancelar plano passado responde 409; editar plano aprovado responde 409. Também cobrem os erros
+  da API: 400 (campos ausentes), 404 (plano, piloto, aeronave, aeroporto, aerovia, vaga ou trecho
+  inexistente), 422 (origem igual ao destino, altitude inválida) e 409 (cancelar plano em edição).
+
+Total: 63 testes de unidade e 15 de integração.
 
 ## Arquitetura e documentação
 
@@ -139,7 +143,8 @@ infrastructure/  api/ (controller + ProblemDetail), persistence/ (entidades JPA,
 | Documento | Conteúdo |
 |---|---|
 | [`docs/enunciado.md`](docs/enunciado.md) | Enunciado completo (prevalece em caso de dúvida) |
-| [`docs/arquitetura.pdf`](docs/arquitetura.pdf) | Modelo de domínio UML, casos de uso, C4 e estrutura de pacotes (7/10) |
-| [`docs/c4.md`](docs/c4.md) | C4 níveis 1 a 3 da versão implementada (corrige as seções 3.3 e 3.4 do PDF); fontes PlantUML em [`docs/c4/`](docs/c4/) |
+| [`docs/arquitetura.pdf`](docs/arquitetura.pdf) | Modelo de domínio UML, casos de uso, C4 (níveis 1 a 3), estrutura de pacotes e decisões; atualizado para a versão implementada |
+| [`docs/dominio.png`](docs/dominio.png), [`docs/casos-de-uso.png`](docs/casos-de-uso.png) | Diagramas UML do domínio e dos casos de uso; fontes em [`dominio.puml`](docs/dominio.puml) e [`casos-de-uso.puml`](docs/casos-de-uso.puml) |
+| [`docs/c4.md`](docs/c4.md) | C4 níveis 1 a 3 da versão implementada, com tabelas de componentes e a dinâmica da aprovação; fontes PlantUML em [`docs/c4/`](docs/c4/) |
 | [`docs/decisoes.md`](docs/decisoes.md) | Decisões de implementação, com alternativas e justificativas |
 | [`docs/demo.http`](docs/demo.http) | Roteiro de requisições para a apresentação |

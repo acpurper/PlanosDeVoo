@@ -28,13 +28,17 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Testcontainers
+@SuppressWarnings("unused") // campos e beans são usados pelo JUnit, Testcontainers e Spring
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = "app.relogio-fixo=2026-11-01T00:00")
 class PlanoDeVooIT {
@@ -58,7 +62,7 @@ class PlanoDeVooIT {
                     if (b != null) {
                         try {
                             b.await(20, TimeUnit.SECONDS);
-                        } catch (Exception e) {
+                        } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
                             throw new IllegalStateException(e);
                         }
                     }
@@ -133,7 +137,7 @@ class PlanoDeVooIT {
         ResponseEntity<Map<String, Object>> resposta = post("/planos/" + id + "/aprovacao");
 
         assertThat(resposta.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
-        assertThat(resposta.getBody().get("violacoes").toString()).contains("ALTITUDE_OCUPADA");
+        assertThat(corpo(resposta).get("violacoes").toString()).contains("ALTITUDE_OCUPADA");
         assertThat(reservasDoPlano(id)).isZero();
         assertThat(totalReservas()).isEqualTo(antes);
         assertThat(situacao(id)).isEqualTo("EM_EDICAO");
@@ -151,7 +155,7 @@ class PlanoDeVooIT {
         ResponseEntity<Map<String, Object>> validacao = post("/planos/" + id + "/validacao");
         assertThat(validacao.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(validacao.getBody()).containsEntry("valido", false);
-        assertThat(validacao.getBody().get("violacoes").toString())
+        assertThat(corpo(validacao).get("violacoes").toString())
                 .contains("ALTITUDE_OCUPADA", "já usada pelo trecho 1 deste plano");
 
         ResponseEntity<Map<String, Object>> aprovacao = post("/planos/" + id + "/aprovacao");
@@ -198,7 +202,7 @@ class PlanoDeVooIT {
         assertThat(resposta.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(resposta.getBody()).containsEntry("situacao", "CANCELADO");
         assertThat(reservasDoPlano(id)).isZero();
-        assertThat(((List<?>) resposta.getBody().get("trechos"))).as("dados do plano preservados").hasSize(1);
+        assertThat(((List<?>) corpo(resposta).get("trechos"))).as("dados do plano preservados").hasSize(1);
 
         // o recurso liberado pode ser aprovado por outro plano
         long outro = criarPlano("PP-JAT", "CWB", "GRU", "2026-12-04T09:00");
@@ -236,7 +240,91 @@ class PlanoDeVooIT {
         assertThat(post("/planos/" + id + "/validacao").getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
-    private static final ParameterizedTypeReference<Map<String, Object>> MAPA = new ParameterizedTypeReference<>() {
+    @Test
+    void consultarPlanoInicialDevolveTrechosHorariosEReservas() {
+        ResponseEntity<Map<String, Object>> r = http.exchange("/planos/1", HttpMethod.GET, null, MAPA);
+
+        assertThat(r.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(r.getBody()).containsEntry("situacao", "APROVADO");
+        assertThat((List<?>) corpo(r).get("trechos")).hasSize(1);
+        assertThat((List<?>) corpo(r).get("reservas")).isNotEmpty();
+    }
+
+    @Test
+    void planoInexistenteResponde404EmTodasAsOperacoes() {
+        assertThat(http.exchange("/planos/999999", HttpMethod.GET, null, MAPA).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(post("/planos/999999/validacao").getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(post("/planos/999999/aprovacao").getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(post("/planos/999999/cancelamento").getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void criarPlanoComCamposAusentesResponde400ListandoOsCampos() {
+        ResponseEntity<Map<String, Object>> r = http.exchange("/planos", HttpMethod.POST,
+                new HttpEntity<>(Map.of("aeronave", "PR-AZA")), MAPA);
+
+        assertThat(r.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(r.getBody()).containsEntry("codigo", "REQUISICAO_INVALIDA");
+        assertThat(corpo(r).get("campos").toString()).contains("pilotoId", "origem", "destino", "dataHoraPartida");
+    }
+
+    @Test
+    void criarPlanoComOrigemIgualAoDestinoResponde422() {
+        Map<String, Object> corpo = Map.of("pilotoId", 1, "aeronave", "PR-AZA", "origem", "POA",
+                "destino", "POA", "dataHoraPartida", "2026-12-07T09:00");
+
+        ResponseEntity<Map<String, Object>> r = http.exchange("/planos", HttpMethod.POST, new HttpEntity<>(corpo), MAPA);
+
+        assertThat(r.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(r.getBody()).containsEntry("codigo", "ORIGEM_IGUAL_DESTINO");
+    }
+
+    @Test
+    void criarPlanoComPilotoAeronaveOuAeroportoInexistenteResponde404() {
+        Map<String, Object> base = new HashMap<>(Map.of("pilotoId", 1, "aeronave", "PR-AZA", "origem", "POA",
+                "destino", "FLN", "dataHoraPartida", "2026-12-07T09:00"));
+        for (Map.Entry<String, Object> invalido : Map.<String, Object>of("pilotoId", 999, "aeronave", "XX-000",
+                "destino", "ZZZ").entrySet()) {
+            Map<String, Object> corpo = new HashMap<>(base);
+            corpo.put(invalido.getKey(), invalido.getValue());
+            assertThat(http.exchange("/planos", HttpMethod.POST, new HttpEntity<>(corpo), MAPA).getStatusCode())
+                    .as(invalido.getKey()).isEqualTo(HttpStatus.NOT_FOUND);
+        }
+    }
+
+    @Test
+    void trechoComAltitudeInvalidaAeroviaOuVagaInexistenteRespondeComErroDeCliente() {
+        long id = criarPlano("PR-AZA", "CWB", "GRU", "2026-12-07T09:00");
+
+        assertThat(http.exchange("/planos/" + id + "/trechos", HttpMethod.POST,
+                new HttpEntity<>(trecho("R6", 24_000, "2026-12-07T09:00", 1, 30)), MAPA).getStatusCode())
+                .as("altitude fora de 25.000 a 35.000").isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(http.exchange("/planos/" + id + "/trechos", HttpMethod.POST,
+                new HttpEntity<>(trecho("R99", 30_000, "2026-12-07T09:00", 1, 30)), MAPA).getStatusCode())
+                .as("aerovia inexistente").isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(http.exchange("/planos/" + id + "/trechos", HttpMethod.POST,
+                new HttpEntity<>(trecho("R6", 30_000, "2026-12-07T09:00", 500, 30)), MAPA).getStatusCode())
+                .as("vaga inexistente em GRU").isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(http.exchange("/planos/" + id + "/trechos/9", HttpMethod.DELETE, null, MAPA).getStatusCode())
+                .as("trecho inexistente").isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void cancelarPlanoEmEdicaoResponde409() {
+        long id = criarPlano("PR-AZA", "CWB", "GRU", "2026-12-08T09:00");
+
+        ResponseEntity<Map<String, Object>> r = post("/planos/" + id + "/cancelamento");
+
+        assertThat(r.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(r.getBody()).containsEntry("codigo", "PLANO_NAO_CANCELAVEL");
+    }
+
+    private static Map<String, Object> corpo(ResponseEntity<Map<String, Object>> resposta) {
+        return Objects.requireNonNull(resposta.getBody(), "resposta sem corpo");
+    }
+
+    private static final ParameterizedTypeReference<Map<String, Object>> MAPA =new ParameterizedTypeReference<>() {
     };
 
     private long criarPlano(String aeronave, String origem, String destino, String partida) {
@@ -244,7 +332,7 @@ class PlanoDeVooIT {
                 "destino", destino, "dataHoraPartida", partida);
         ResponseEntity<Map<String, Object>> r = http.exchange("/planos", HttpMethod.POST, new HttpEntity<>(corpo), MAPA);
         assertThat(r.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        return ((Number) r.getBody().get("id")).longValue();
+        return ((Number) corpo(r).get("id")).longValue();
     }
 
     private void adicionarTrecho(long plano, String aerovia, int altitude, String entrada, Integer vaga, Integer permanencia) {

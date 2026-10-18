@@ -151,7 +151,7 @@ entidades próprias (`*Entity`), repositórios Spring Data e mappers.
 
 **Alternativa.** Anotar as classes de domínio com JPA, o que exigiria menos código.
 
-**Motivo.** O domínio fica testável sem banco nem Spring (58 testes rodam em milissegundos) e não precisa
+**Motivo.** O domínio fica testável sem banco nem Spring (63 testes rodam em milissegundos) e não precisa
 de construtores vazios nem de setters que quebrariam invariantes, como a imutabilidade da `Aerovia`. O
 custo é o código de mapeamento, concentrado em `MalhaMapper` e `PlanoMapper`.
 
