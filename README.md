@@ -8,21 +8,27 @@ Backend do **Sistema de Gestão de Planos de Voo**, trabalho final de Projeto e 
 
 ## Escopo desta entrega
 
-5 dos 11 casos de uso do [modelo](docs/arquitetura.pdf):
+Os 11 casos de uso do [modelo](docs/arquitetura.pdf) estão implementados:
 
 | UC | Caso de uso | Endpoint |
 |---|---|---|
+| UC01 | Consultar malha e recursos | `GET /aeroportos`, `/aeroportos/{codigo}`, `/aerovias`, `/aerovias/{id}`, `/pilotos`, `/aeronaves`, `/aeronaves/{prefixo}` |
 | UC02 | Criar plano | `POST /planos` |
 | UC03 | Editar percurso | `POST /planos/{id}/trechos`, `PUT` e `DELETE /planos/{id}/trechos/{ordem}` |
+| UC04 | Ver altitudes livres | `GET /aerovias/{id}/altitudes-livres?inicio=...&fim=...` |
+| UC05 | Ver vagas livres | `GET /aeroportos/{codigo}/vagas-livres?inicio=...&fim=...` |
 | UC06 | Validar plano | `POST /planos/{id}/validacao` |
 | UC07 | Aprovar plano | `POST /planos/{id}/aprovacao` |
+| UC08 | Consultar plano | `GET /planos/{id}` (trechos, horários calculados, situação e reservas) |
+| UC09 | Listar por situação | `GET /planos?situacao=EM_EDICAO\|APROVADO\|CANCELADO\|ABANDONADO` (sem o parâmetro, lista todos) |
+| UC10 | Abandonar plano | `POST /planos/{id}/abandono` |
 | UC11 | Cancelar plano | `POST /planos/{id}/cancelamento` |
 
-Para apoiar a demonstração existe também `GET /planos/{id}`, que devolve o plano com trechos, horários
-calculados, situação e reservas. Ficam para a próxima entrega: UC01, UC04, UC05, UC08 completo, UC09 e UC10.
+As consultas de disponibilidade (UC04 e UC05) retratam o momento da consulta e **não reservam nada**. Um
+recurso aparece como disponível quando está livre em todos os slots de uma hora que o período toca.
 
-Por orientação do professor, **não há casos de uso de cadastro**. Aeroportos, aerovias, pilotos e aeronaves
-são carregados por script (ver [decisão I1](docs/decisoes.md#i1-dispensa-dos-casos-de-uso-de-cadastro)).
+Por orientação do professor, **não há casos de uso de cadastro**: aeroportos, aerovias, pilotos e aeronaves
+podem ser consultados pela API (UC01), mas são carregados por script (ver [decisão I1](docs/decisoes.md#i1-dispensa-dos-casos-de-uso-de-cadastro)).
 
 ## Pré-requisitos
 
@@ -71,13 +77,17 @@ Para gerar o jar: `./mvnw package` e depois `java -jar target/gestaoplanosvoo-0.
 - **OpenAPI (JSON):** <http://localhost:8080/v3/api-docs>
 - **Roteiro de demonstração:** [`docs/demo.http`](docs/demo.http). Cobre o ciclo completo e cada tipo de
   falha (percurso inconsistente, horário incompatível, restrições da aeronave, autonomia, conflito de
-  aerovia, vaga ocupada, aprovação sem reserva parcial, cancelamento e edição de plano não editável). Pode
+  aerovia, vaga ocupada, aprovação sem reserva parcial, cancelamento e edição de plano não editável), além
+  das consultas da malha, de disponibilidade, da listagem por situação e do abandono. Pode
   ser executado com a extensão REST Client do VS Code ou pelo HTTP Client do IntelliJ.
 
 Exemplo rápido:
 
 ```bash
 curl -s localhost:8080/planos/1                       # plano aprovado da carga inicial
+curl -s "localhost:8080/planos?situacao=APROVADO"     # listagem por situação
+curl -s "localhost:8080/aerovias/R2/altitudes-livres?inicio=2026-12-01T08:00&fim=2026-12-01T10:00"
+curl -s "localhost:8080/aeroportos/GRU/vagas-livres?inicio=2026-12-01T09:00&fim=2026-12-01T11:00"
 curl -s -X POST localhost:8080/planos/7/validacao     # AUTONOMIA_EXCEDIDA
 curl -s -X POST localhost:8080/planos/6/cancelamento  # 409: voo já executado
 ```
@@ -97,6 +107,11 @@ conflitos quanto recursos disponíveis.
 | 5 | APROVADO | PR-AZA GRU→POA por R3 a 30.000, 18:00→19:02 |
 | 6 | APROVADO em **2026-09-01** | voo já executado: não pode ser cancelado |
 | 7 | EM_EDICAO | PP-LEN POA→FLN→CWB em sobrevoo: 608 km > 595 km (autonomia) |
+| 8 | ABANDONADO | PP-JAT POA→FLN por R1 a 27.000, 20:00; nunca teve reservas |
+| 9 | CANCELADO | PR-AZA CWB→GRU por R6 a 31.000, 12:00→12:26; aprovado e cancelado, reservas liberadas |
+
+Com isso, a listagem por situação (UC09) já devolve planos nas quatro situações. O plano 9 só é cancelado
+se a partida ainda for futura quando o banco é criado; caso contrário, fica aprovado.
 
 | Aeronave | Categoria | km/h | Autonomia (85%) |
 |---|---|---|---|
@@ -116,17 +131,21 @@ não pode ser demonstrado. Se ela já tiver passado, suba com `APP_RELOGIO_FIXO=
 ./mvnw verify
 ```
 
-- **Unidade** (`src/test/.../domain`, sem Spring nem banco): tempo e chegada, slots (incluindo os exemplos do
-  enunciado), altitude, regras por categoria, autonomia, percurso e horários, pouso e disponibilidade,
-  acúmulo de violações e ciclo de vida.
+- **Unidade** (`src/test/.../domain` e `.../application`, sem Spring nem banco): tempo e chegada, slots
+  (incluindo os exemplos do enunciado), altitude, regras por categoria, autonomia, percurso e horários, pouso
+  e disponibilidade, acúmulo de violações, ciclo de vida e as consultas de altitudes e vagas livres.
 - **Integração** (`PlanoDeVooIT`, com Testcontainers e PostgreSQL 16 real; precisa do Docker rodando):
   validar não cria reservas; aprovação com violação não grava nada; duas aprovações concorrentes do mesmo
   slot resultam em uma aprovada e outra com 409, sem reserva parcial; cancelar plano futuro libera as
   reservas; cancelar plano passado responde 409; editar plano aprovado responde 409. Também cobrem os erros
   da API: 400 (campos ausentes), 404 (plano, piloto, aeronave, aeroporto, aerovia, vaga ou trecho
   inexistente), 422 (origem igual ao destino, altitude inválida) e 409 (cancelar plano em edição).
+  E ainda: abandono (e 409 ao abandonar plano aprovado), listagem pelas quatro situações (e 400 para
+  situação desconhecida), altitudes e vagas livres contra a carga inicial (e 404/400/422 para recurso
+  inexistente, parâmetro ausente e período inválido) e as consultas da malha e da frota. Uma corrida entre edição e
+  aprovação do mesmo plano confirma que a edição espera o bloqueio e recebe 409, sem alterar o percurso aprovado.
 
-Total: 63 testes de unidade e 15 de integração.
+Total: 72 testes de unidade e 24 de integração.
 
 ## Arquitetura e documentação
 
@@ -135,15 +154,15 @@ Total: 63 testes de unidade e 15 de integração.
 ```
 domain/          Java puro: model/ (PlanoDeVoo, Trecho, Pouso, ...), model/aeronave/ (Strategy),
                  model/reserva/, repository/ (portas), exception/
-application/     usecases/ (um por caso de uso, @Transactional em aprovar e cancelar), dto/
-infrastructure/  api/ (controller + ProblemDetail), persistence/ (entidades JPA, Spring Data,
+application/     usecases/ (um por caso de uso, @Transactional em aprovar, cancelar e abandonar), dto/
+infrastructure/  api/ (controllers + ProblemDetail), persistence/ (entidades JPA, Spring Data,
                  adaptadores, mappers), config/ (Clock, OpenAPI, carga inicial)
 ```
 
 | Documento | Conteúdo |
 |---|---|
 | [`docs/enunciado.md`](docs/enunciado.md) | Enunciado completo (prevalece em caso de dúvida) |
-| [`docs/arquitetura.pdf`](docs/arquitetura.pdf) | Modelo de domínio UML, casos de uso, C4 (níveis 1 a 3), estrutura de pacotes e decisões; atualizado para a versão implementada |
+| [`docs/arquitetura.pdf`](docs/arquitetura.pdf) | Modelo de domínio UML, casos de uso, C4 (níveis 1 a 3), estrutura de pacotes e decisões, na versão entregue. Fonte em [`docs/arquitetura.html`](docs/arquitetura.html); o comando para regerar o PDF com o Chrome está no comentário do topo do HTML |
 | [`docs/dominio.png`](docs/dominio.png), [`docs/casos-de-uso.png`](docs/casos-de-uso.png) | Diagramas UML do domínio e dos casos de uso; fontes em [`dominio.puml`](docs/dominio.puml) e [`casos-de-uso.puml`](docs/casos-de-uso.puml) |
 | [`docs/c4.md`](docs/c4.md) | C4 níveis 1 a 3 da versão implementada, com tabelas de componentes e a dinâmica da aprovação; fontes PlantUML em [`docs/c4/`](docs/c4/) |
 | [`docs/decisoes.md`](docs/decisoes.md) | Decisões de implementação, com alternativas e justificativas |

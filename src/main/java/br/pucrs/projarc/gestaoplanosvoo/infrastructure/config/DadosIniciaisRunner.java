@@ -4,7 +4,9 @@ import br.pucrs.projarc.gestaoplanosvoo.application.dto.request.CriarPlanoReques
 import br.pucrs.projarc.gestaoplanosvoo.application.dto.request.PousoRequest;
 import br.pucrs.projarc.gestaoplanosvoo.application.dto.request.TrechoRequest;
 import br.pucrs.projarc.gestaoplanosvoo.application.dto.response.PlanoResponse;
+import br.pucrs.projarc.gestaoplanosvoo.application.usecases.AbandonarPlanoUseCase;
 import br.pucrs.projarc.gestaoplanosvoo.application.usecases.AprovarPlanoUseCase;
+import br.pucrs.projarc.gestaoplanosvoo.application.usecases.CancelarPlanoUseCase;
 import br.pucrs.projarc.gestaoplanosvoo.application.usecases.CriarPlanoUseCase;
 import br.pucrs.projarc.gestaoplanosvoo.application.usecases.EditarPercursoUseCase;
 import br.pucrs.projarc.gestaoplanosvoo.domain.repository.PlanoDeVooRepositoryPort;
@@ -15,6 +17,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -27,14 +30,22 @@ public class DadosIniciaisRunner implements ApplicationRunner {
     private final CriarPlanoUseCase criar;
     private final EditarPercursoUseCase editar;
     private final AprovarPlanoUseCase aprovar;
+    private final AbandonarPlanoUseCase abandonar;
+    private final CancelarPlanoUseCase cancelar;
+    private final Clock clock;
     private final LocalDate dia;
 
     public DadosIniciaisRunner(PlanoDeVooRepositoryPort planos, CriarPlanoUseCase criar, EditarPercursoUseCase editar,
-                               AprovarPlanoUseCase aprovar, @Value("${app.data-referencia}") LocalDate dataReferencia) {
+                               AprovarPlanoUseCase aprovar, AbandonarPlanoUseCase abandonar,
+                               CancelarPlanoUseCase cancelar, Clock clock,
+                               @Value("${app.data-referencia}") LocalDate dataReferencia) {
         this.planos = planos;
         this.criar = criar;
         this.editar = editar;
         this.aprovar = aprovar;
+        this.abandonar = abandonar;
+        this.cancelar = cancelar;
+        this.clock = clock;
         this.dia = dataReferencia;
     }
 
@@ -84,8 +95,24 @@ public class DadosIniciaisRunner implements ApplicationRunner {
         trecho(p7, "R1", 25_000, as(9, 0), null, null);
         trecho(p7, "R4", 25_000, as(9, 55), 3, 30);
 
-        log.info("Carga inicial concluída: planos aprovados {} a {} em {}, plano {} executado em {}, plano {} em edição.",
-                p1, p5, dia, p6, passado.toLocalDate(), p7);
+        // 8) Abandonado: PP-JAT POA->FLN por R1 a 27.000 às 20:00. Nunca teve reservas.
+        Long p8 = plano(2L, "PP-JAT", "POA", "FLN", as(20, 0));
+        trecho(p8, "R1", 27_000, as(20, 0), 3, 30);
+        abandonar.executar(p8);
+
+        // 9) Cancelado: PR-AZA CWB->GRU por R6 a 31.000 12:00 -> 12:26; pouso GRU-2 30 min. Aprovado e depois
+        //    cancelado, então as reservas foram liberadas. Só dá para cancelar enquanto a partida é futura.
+        Long p9 = plano(2L, "PR-AZA", "CWB", "GRU", as(12, 0));
+        trecho(p9, "R6", 31_000, as(12, 0), 2, 30);
+        aprovar.executar(p9);
+        if (as(12, 0).isAfter(LocalDateTime.now(clock))) {
+            cancelar.executar(p9);
+        } else {
+            log.warn("Data de referência {} já passou: o plano {} fica aprovado em vez de cancelado.", dia, p9);
+        }
+
+        log.info("Carga inicial concluída: planos aprovados {} a {} em {}, plano {} executado em {}, plano {} em edição, "
+                + "plano {} abandonado e plano {} cancelado.", p1, p5, dia, p6, passado.toLocalDate(), p7, p8, p9);
     }
 
     private Long plano(Long piloto, String aeronave, String origem, String destino, LocalDateTime partida) {

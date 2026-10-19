@@ -14,6 +14,9 @@ public interface ReservaAeroviaJpaRepository extends JpaRepository<ReservaAerovi
 
     List<ReservaAeroviaEntity> findByPlanoIdOrderBySlotInicio(Long planoId);
 
+    List<ReservaAeroviaEntity> findByAerovia_IdAndSlotInicioGreaterThanEqualAndSlotInicioLessThanOrderBySlotInicio(
+            String aeroviaId, LocalDateTime inicio, LocalDateTime fim);
+
     @Modifying(flushAutomatically = true)
     @Query("delete from ReservaAeroviaEntity r where r.planoId = :planoId")
     int apagarDoPlano(Long planoId);

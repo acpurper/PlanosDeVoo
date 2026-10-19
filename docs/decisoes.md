@@ -25,6 +25,11 @@ Cada uma traz a escolha feita, a alternativa considerada e o motivo.
 | I15 | Esquema controlado só pelo Flyway | `application.yml` (`ddl-auto: none`) |
 | I16 | Erros em RFC 7807 com código estável | `ApiExceptionHandler` |
 | I17 | Spring Boot 3.5 | `pom.xml` |
+| I18 | Disponibilidade: livre em **todos** os slots do período, calculada com uma consulta por recurso | `ConsultarAltitudesLivresUseCase`, `ConsultarVagasLivresUseCase` |
+| I19 | Listagem de planos devolve um resumo; o detalhe fica em `GET /planos/{id}` | `ListarPlanosUseCase`, `PlanoResumoResponse` |
+| I20 | Abandono pela mesma via de bloqueio do cancelamento | `AbandonarPlanoUseCase` |
+| I21 | Carga inicial inclui um plano abandonado e um cancelado | `DadosIniciaisRunner` |
+| I22 | A aprovação não exige partida futura | `PlanoDeVoo.aprovar` |
 
 ---
 
@@ -39,6 +44,9 @@ trata essas entidades como dados pré-existentes.
 migrações Flyway versionadas. Para incluir novos aeroportos ou aerovias informados pelo professor, cria-se
 uma nova migração (`V4__...sql`), **sem alterar código**. Isso continua atendendo à seção 2: novos
 elementos entram "sem alterações na lógica da aplicação".
+
+A dispensa vale só para o **cadastro**. A **consulta** desses dados continua no escopo (UC01) e está
+disponível em `GET /aeroportos`, `/aerovias`, `/pilotos` e `/aeronaves`.
 
 **Alternativa.** Endpoints `POST /aeroportos`, `/aerovias`, `/pilotos`, `/aeronaves`. Foram descartados
 por orientação do professor. Se voltarem a ser exigidos, entram como novos casos de uso em
@@ -137,12 +145,21 @@ com um 409 que atribuía o conflito a "outro plano". Agora o caso responde 422 c
 
 ## I7. Lock pessimista do plano
 
-**Decisão.** Aprovação e cancelamento carregam o plano com `SELECT ... FOR UPDATE`. Também há
-`@Version` na entidade, para edições concorrentes.
+**Decisão.** Toda operação que altera o plano carrega-o com `SELECT ... FOR UPDATE`: edição do percurso
+(incluir, alterar e remover trecho), aprovação, cancelamento e abandono. A entidade também tem `@Version`,
+como segunda barreira.
 
-**Motivo.** Duas aprovações, ou uma aprovação e um cancelamento, do **mesmo** plano não podem se
-intercalar. A restrição UNIQUE resolve a disputa entre planos diferentes; o lock resolve a disputa dentro
-do mesmo plano.
+**Motivo.** Duas operações sobre o **mesmo** plano não podem se intercalar. A restrição UNIQUE resolve a
+disputa entre planos diferentes; o lock resolve a disputa dentro do mesmo plano. O caso que motivou
+estender o lock à edição: incluir um trecho só insere linhas em `trecho` e **não** incrementa a versão do
+plano, então o `@Version` sozinho não garantia que uma edição concorrente com a aprovação falhasse de
+forma previsível. Com o lock, a edição espera a aprovação terminar, encontra o plano `APROVADO` e recebe
+409 `PLANO_NAO_EDITAVEL`, e o percurso aprovado fica igual ao que gerou as reservas. O teste
+`edicaoDuranteAAprovacaoEsperaOLockERecebe409` reproduz essa corrida.
+
+**Alternativa.** Só `@Version`. Não cobre alterações que mexem apenas na coleção de trechos e devolve um
+erro genérico de edição concorrente. A validação (UC06) e as consultas não bloqueiam, porque não alteram
+nada.
 
 ## I8. Entidades JPA separadas do domínio
 
@@ -164,7 +181,9 @@ custo é o código de mapeamento, concentrado em `MalhaMapper` e `PlanoMapper`.
 **Como evoluir:**
 - *regra nova:* uma classe nova que implementa `RegraOperacao`, incluída na lista da categoria;
 - *categoria nova:* uma subclasse de `Aeronave`, uma subclasse de `AeronaveEntity` e um ramo no
-  `MalhaMapper`. Validação, casos de uso e API não mudam.
+  `MalhaMapper`. Validação e casos de uso não mudam. Na API, `GET /aeronaves` já lista a categoria nova
+  com os dados comuns e as regras; para mostrar os campos próprios dela, basta um ramo em
+  `AeronaveDetalheResponse`.
 
 **Alternativa.** Um `switch` por categoria dentro da validação, que obrigaria a mexer no validador a cada
 categoria ou regra nova. É a alternativa já descartada em D1.
@@ -237,6 +256,8 @@ poderiam ficar diferentes entre ambientes.
 | HTTP | Situação | `codigo` |
 |---|---|---|
 | 400 | JSON malformado ou campo obrigatório ausente (lista em `campos`) | `REQUISICAO_INVALIDA` |
+| 400 | Parâmetro de consulta ausente ou mal formatado (data, situação desconhecida) | `REQUISICAO_INVALIDA` |
+| 422 | Período de disponibilidade com fim igual ou anterior ao início | `PERIODO_INVALIDO` |
 | 404 | Plano, piloto, aeronave, aeroporto, aerovia, vaga ou trecho inexistente | `NAO_ENCONTRADO` |
 | 409 | Plano fora de edição | `PLANO_NAO_EDITAVEL` |
 | 409 | Cancelar plano não aprovado / voo já executado | `PLANO_NAO_CANCELAVEL` / `VOO_JA_EXECUTADO` |
@@ -256,8 +277,65 @@ inofensivo no Java 21.
 
 ---
 
-## Fora desta entrega
+## I18. Consulta de disponibilidade
 
-UC01 (consultar malha e recursos), UC04 e UC05 (altitudes e vagas livres), UC08 completo, UC09 (listar por
-situação) e UC10 (abandonar). O domínio já tem `PlanoDeVoo.abandonar()` e a porta
-`VerificadorDisponibilidade`, que esses casos de uso vão aproveitar.
+**Decisão.** `GET /aerovias/{id}/altitudes-livres` e `GET /aeroportos/{codigo}/vagas-livres` recebem
+`inicio` e `fim`. O período é convertido nos slots de uma hora que ele toca, com a mesma regra da
+validação (`SlotHorario.cobrindo`, intervalos semiabertos, I3). Uma altitude ou vaga é **disponível**
+quando está livre em todos esses slots. A resposta também lista o que está ocupado, com o slot e o plano
+que reservou, para facilitar a demonstração de conflitos.
+
+As reservas do período são lidas com **uma consulta por recurso** (`ReservaRepositoryPort.listarDaAerovia`
+e `listarDoAeroporto`) e agrupadas em memória.
+
+**Alternativa.** Reaproveitar `VerificadorDisponibilidade.altitudeOcupada` slot a slot. Daria
+11 altitudes × N slots consultas ao banco (ou 115 vagas × N em GRU). A porta nova evita isso, e a
+validação continua usando a interface mínima de antes.
+
+**Motivo.** O enunciado (5.3) pede que a consulta retrate o momento e não reserve nada. Por isso os casos
+de uso são `readOnly` e não passam por `salvarTodas`. A aprovação continua revalidando por conta própria
+(I10), então uma consulta antiga não garante nada.
+
+## I19. Listagem de planos em resumo
+
+**Decisão.** `GET /planos?situacao=` devolve `PlanoResumoResponse` (situação, aeronave, origem, destino,
+partida, chegada prevista e quantidades de trechos e reservas). O plano completo continua em
+`GET /planos/{id}`. Sem o parâmetro, a listagem traz todos os planos. Uma situação desconhecida responde
+400.
+
+**Alternativa.** Devolver o `PlanoResponse` completo de cada plano. Ficaria pesado e repetiria os slots de
+cada trecho em toda a listagem.
+
+## I20. Abandono
+
+**Decisão.** `POST /planos/{id}/abandono` chama `PlanoDeVoo.abandonar()`, que só aceita planos
+`EM_EDICAO` (senão 409 `PLANO_NAO_EDITAVEL`). Como o plano em edição não tem reservas, nada é liberado.
+O plano é carregado com bloqueio (I7), para que uma aprovação simultânea não termine depois do abandono.
+O plano abandonado continua consultável e não pode mais ser alterado, validado nem aprovado.
+
+**Alternativa.** `DELETE /planos/{id}`. Foi descartado porque o plano não é apagado: muda de situação
+e permanece consultável (6.6 e 6.7). Por isso é uma transição de estado, com o mesmo formato do cancelamento.
+
+## I21. Planos abandonado e cancelado na carga inicial
+
+**Decisão.** O `DadosIniciaisRunner` cria também o plano 8, abandonado, e o plano 9, aprovado e depois
+cancelado, sempre pelos casos de uso (I5).
+
+**Motivo.** Assim a listagem por situação mostra as quatro situações logo na primeira execução, e o
+plano 9 mostra que o cancelamento libera as reservas. Se a partida já tiver passado quando o banco é
+criado, o plano 9 fica aprovado, em vez de impedir a aplicação de subir.
+
+## I22. Aprovação sem exigir partida futura
+
+**Decisão.** A aprovação não recusa planos cuja partida já passou. Só o **cancelamento** depende do
+relógio (6.8).
+
+**Motivo.** O enunciado restringe o cancelamento ao horário da partida, mas não a aprovação. Aprovar um
+plano no passado equivale a registrar um voo já realizado: ele ocupa os recursos daquele horário e
+nunca mais pode ser cancelado. É assim que a carga inicial cria o plano 6, que demonstra a regra
+"aprovado com partida já ocorrida não pode ser cancelado" passando pelos próprios casos de uso (I5).
+
+**Alternativa.** Uma violação `PARTIDA_NO_PASSADO` na validação. Ela impediria criar o plano 6 pelos casos
+de uso e acrescentaria uma regra que o enunciado não pede. Se o professor a pedir, basta uma verificação
+em `PlanoDeVoo.validar`, que já recebe as dependências por parâmetro, mais o `Clock`.
+

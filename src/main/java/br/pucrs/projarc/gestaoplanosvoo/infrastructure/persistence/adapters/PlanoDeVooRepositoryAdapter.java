@@ -1,6 +1,7 @@
 package br.pucrs.projarc.gestaoplanosvoo.infrastructure.persistence.adapters;
 
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.PlanoDeVoo;
+import br.pucrs.projarc.gestaoplanosvoo.domain.model.SituacaoPlano;
 import br.pucrs.projarc.gestaoplanosvoo.domain.repository.PlanoDeVooRepositoryPort;
 import br.pucrs.projarc.gestaoplanosvoo.domain.repository.ReservaRepositoryPort;
 import br.pucrs.projarc.gestaoplanosvoo.infrastructure.persistence.entities.PlanoVooEntity;
@@ -8,6 +9,7 @@ import br.pucrs.projarc.gestaoplanosvoo.infrastructure.persistence.mappers.Plano
 import br.pucrs.projarc.gestaoplanosvoo.infrastructure.persistence.repositories.PlanoVooJpaRepository;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -41,6 +43,20 @@ public class PlanoDeVooRepositoryAdapter implements PlanoDeVooRepositoryPort {
     @Override
     public Optional<PlanoDeVoo> buscarPorIdParaAtualizacao(Long id) {
         return planos.buscarComBloqueio(id).map(e -> mapper.paraDominio(e, reservas.listarDoPlano(id)));
+    }
+
+    @Override
+    public List<PlanoDeVoo> listarTodos() {
+        return planos.findAllByOrderById().stream().map(this::paraDominio).toList();
+    }
+
+    @Override
+    public List<PlanoDeVoo> listarPorSituacao(SituacaoPlano situacao) {
+        return planos.findBySituacaoOrderById(situacao).stream().map(this::paraDominio).toList();
+    }
+
+    private PlanoDeVoo paraDominio(PlanoVooEntity e) {
+        return mapper.paraDominio(e, reservas.listarDoPlano(e.getId()));
     }
 
     @Override

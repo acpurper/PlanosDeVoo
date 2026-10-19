@@ -8,7 +8,7 @@
 # Também dá para executar tudo pelo Swagger UI: http://localhost:8080/swagger-ui.html
 #
 # Planos da carga inicial: 1 a 5 aprovados em 2026-12-01; 6 aprovado em 2026-09-01 (já executado);
-# 7 em edição (autonomia excedida). Aeronaves: PP-LEN e PP-JAT (particulares), PR-AZA e PR-GOB
+# 7 em edição (autonomia excedida); 8 abandonado; 9 cancelado. Aeronaves: PP-LEN e PP-JAT (particulares), PR-AZA e PR-GOB
 # (passageiros), PR-CGA e PR-CGB (carga). Pilotos 1 a 4.
 
 @host = http://localhost:8080
@@ -22,6 +22,56 @@ GET {{host}}/planos/1
 
 ### Plano 2: sobrevoo de FLN e pouso em CWB, com chegadas calculadas
 GET {{host}}/planos/2
+
+### UC09: listar por situação (EM_EDICAO, APROVADO, CANCELADO, ABANDONADO); sem parâmetro lista todos
+GET {{host}}/planos?situacao=APROVADO
+
+###
+GET {{host}}/planos?situacao=CANCELADO
+
+###
+GET {{host}}/planos?situacao=ABANDONADO
+
+### Situação desconhecida -> 400 REQUISICAO_INVALIDA
+GET {{host}}/planos?situacao=VOANDO
+
+############################################################################
+# 0.1 Malha e recursos (UC01)
+############################################################################
+
+### Aeroportos com o total de vagas
+GET {{host}}/aeroportos
+
+### Aerovias (orientadas) com distância
+GET {{host}}/aerovias
+
+### Pilotos
+GET {{host}}/pilotos
+
+### Aeronaves com dados da categoria e regras de operação
+GET {{host}}/aeronaves
+
+### Aeronave inexistente -> 404
+GET {{host}}/aeronaves/XX-XXX
+
+############################################################################
+# 0.2 Disponibilidade (UC04 e UC05): retrata o momento e não reserva nada
+############################################################################
+
+### R2 entre 08:00 e 10:00: 30.000 ocupada pelo plano 1 nos slots 08h e 09h; as outras 10 altitudes livres
+GET {{host}}/aerovias/R2/altitudes-livres?inicio=2026-12-01T08:00&fim=2026-12-01T10:00
+
+### R6 livre o dia todo (o plano 9, que a usava, foi cancelado)
+GET {{host}}/aerovias/R6/altitudes-livres?inicio=2026-12-01T00:00&fim=2026-12-01T23:59
+
+### GRU entre 09:00 e 11:00: vaga 1 ocupada pelo plano 1; 114 de 115 livres
+GET {{host}}/aeroportos/GRU/vagas-livres?inicio=2026-12-01T09:00&fim=2026-12-01T11:00
+
+### Período com fim antes do início -> 422 PERIODO_INVALIDO
+GET {{host}}/aerovias/R2/altitudes-livres?inicio=2026-12-01T10:00&fim=2026-12-01T09:00
+
+### Parâmetro ausente -> 400 REQUISICAO_INVALIDA
+GET {{host}}/aeroportos/GRU/vagas-livres?inicio=2026-12-01T09:00
 
 ############################################################################
 # 1. Ciclo completo com sucesso (UC02 -> UC03 -> UC06 -> UC07)
@@ -288,6 +338,9 @@ POST {{host}}/planos/1/cancelamento
 ### O recurso foi liberado: o plano do conflito (seção 6) agora valida sem ALTITUDE_OCUPADA
 POST {{host}}/planos/{{conflito.response.body.id}}/validacao
 
+### ...e a consulta de disponibilidade já mostra R2 a 30.000 livre às 08h e 09h
+GET {{host}}/aerovias/R2/altitudes-livres?inicio=2026-12-01T08:00&fim=2026-12-01T10:00
+
 ### Cancelar de novo -> 409 PLANO_NAO_CANCELAVEL
 POST {{host}}/planos/1/cancelamento
 
@@ -365,3 +418,29 @@ DELETE {{host}}/planos/{{planoB.response.body.id}}/trechos/9
 
 ### Plano inexistente -> 404
 GET {{host}}/planos/9999
+
+############################################################################
+# 12. Abandono (UC10)
+############################################################################
+
+### Criar um plano e abandoná-lo -> 200 ABANDONADO, sem reservas
+# @name abandonavel
+POST {{host}}/planos
+Content-Type: application/json
+
+{ "pilotoId": 2, "aeronave": "PR-GOB", "origem": "FLN", "destino": "POA", "dataHoraPartida": "2026-12-01T21:00" }
+
+###
+POST {{host}}/planos/{{abandonavel.response.body.id}}/abandono
+
+### Continua consultável
+GET {{host}}/planos/{{abandonavel.response.body.id}}
+
+### Não pode mais ser alterado, validado nem aprovado -> 409 PLANO_NAO_EDITAVEL
+POST {{host}}/planos/{{abandonavel.response.body.id}}/validacao
+
+### Abandonar plano aprovado -> 409 PLANO_NAO_EDITAVEL
+POST {{host}}/planos/2/abandono
+
+### Aparece na listagem de abandonados, junto com o plano 8 da carga inicial
+GET {{host}}/planos?situacao=ABANDONADO

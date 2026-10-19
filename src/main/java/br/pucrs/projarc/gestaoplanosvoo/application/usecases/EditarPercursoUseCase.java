@@ -48,8 +48,12 @@ public class EditarPercursoUseCase {
         return PlanoResponse.de(planos.salvar(plano));
     }
 
+    /**
+     * Carrega com o mesmo bloqueio da aprovação: uma edição que chega durante a aprovação espera ela terminar
+     * e então encontra o plano APROVADO, em vez de alterar um percurso que já tem reservas.
+     */
     private PlanoDeVoo carregarEditavel(Long planoId) {
-        PlanoDeVoo plano = planos.buscarPorId(planoId)
+        PlanoDeVoo plano = planos.buscarPorIdParaAtualizacao(planoId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Plano " + planoId + " não encontrado."));
         plano.garantirEditavel();
         return plano;

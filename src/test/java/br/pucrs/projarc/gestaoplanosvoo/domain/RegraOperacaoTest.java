@@ -32,6 +32,8 @@ class RegraOperacaoTest {
         assertThat(CARGA.podeOperar(alt(25_000), as(5, 45), as(6, 4))).as("o trecho inteiro precisa caber").isFalse();
         assertThat(CARGA.podeOperar(alt(25_000), as(6, 0), as(6, 30))).isFalse();
         assertThat(CARGA.podeOperar(alt(25_000), as(23, 0), as(23, 30))).isFalse();
+        assertThat(CARGA.podeOperar(alt(25_000), as(23, 50), as(23, 50).plusMinutes(30)))
+                .as("cruzar a meia-noite deixa parte do uso fora da janela").isFalse();
     }
 
     @Test
