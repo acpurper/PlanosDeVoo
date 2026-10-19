@@ -5,8 +5,8 @@ UpdateElementStyle("person", $bgColor="#4A148C", $fontColor="#ffffff", $borderCo
 UpdateElementStyle("system", $bgColor="#7B1FA2", $fontColor="#ffffff", $borderColor="#4A148C")
 UpdateRelStyle($lineColor="#6A1B9A", $textColor="#4A148C")
 
-Person(operador, "Operador de Voo", "Responsável pelo planejamento, validação, aprovação e cancelamento de planos de voo.")
+Person(operador, "Operador de Voo", "Responsável pelo planejamento, validação, aprovação, abandono e cancelamento de planos de voo.")
 System(sistemaVoos, "Sistema de Gestão de Planos de Voo", "Backend com API REST: elaboração de percursos, validação de regras de operação e reserva atômica de slots.")
 
-Rel(operador, sistemaVoos, "Elabora percurso, valida, aprova e cancela planos de voo", "HTTPS / JSON")
+Rel(operador, sistemaVoos, "Consulta malha e disponibilidade; elabora percurso, valida, aprova, abandona e cancela planos de voo", "HTTPS / JSON")
 @enduml

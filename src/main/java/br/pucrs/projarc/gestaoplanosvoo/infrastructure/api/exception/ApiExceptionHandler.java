@@ -7,6 +7,7 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.exception.PlanoInvalidoException;
 import br.pucrs.projarc.gestaoplanosvoo.domain.exception.RecursoNaoEncontradoException;
 import br.pucrs.projarc.gestaoplanosvoo.domain.exception.RegraDeNegocioException;
 import br.pucrs.projarc.gestaoplanosvoo.domain.exception.SituacaoInvalidaException;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -15,6 +16,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
@@ -80,6 +82,26 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         p.setProperty("campos", e.getBindingResult().getFieldErrors().stream()
                 .map(f -> Map.of("campo", f.getField(), "erro", String.valueOf(f.getDefaultMessage())))
                 .toList());
+        return ResponseEntity.badRequest().body(p);
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleTypeMismatch(TypeMismatchException e, HttpHeaders headers,
+                                                        HttpStatusCode status, WebRequest request) {
+        return parametroInvalido("Valor inválido para o parâmetro " + e.getPropertyName() + ": " + e.getValue() + ".");
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleMissingServletRequestParameter(MissingServletRequestParameterException e,
+                                                                          HttpHeaders headers, HttpStatusCode status,
+                                                                          WebRequest request) {
+        return parametroInvalido("Parâmetro obrigatório ausente: " + e.getParameterName() + ".");
+    }
+
+    private static ResponseEntity<Object> parametroInvalido(String detalhe) {
+        ProblemDetail p = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detalhe);
+        p.setTitle("Requisição inválida");
+        p.setProperty("codigo", "REQUISICAO_INVALIDA");
         return ResponseEntity.badRequest().body(p);
     }
 

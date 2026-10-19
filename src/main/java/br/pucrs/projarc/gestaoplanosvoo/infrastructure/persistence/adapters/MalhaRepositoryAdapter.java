@@ -10,9 +10,11 @@ import br.pucrs.projarc.gestaoplanosvoo.infrastructure.persistence.repositories.
 import br.pucrs.projarc.gestaoplanosvoo.infrastructure.persistence.repositories.AeroportoJpaRepository;
 import br.pucrs.projarc.gestaoplanosvoo.infrastructure.persistence.repositories.AeroviaJpaRepository;
 import br.pucrs.projarc.gestaoplanosvoo.infrastructure.persistence.repositories.PilotoJpaRepository;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -52,5 +54,25 @@ public class MalhaRepositoryAdapter implements MalhaRepositoryPort {
     @Override
     public Optional<Aeronave> buscarAeronave(String prefixo) {
         return aeronaves.findById(prefixo).map(mapper::paraDominio);
+    }
+
+    @Override
+    public List<Aeroporto> listarAeroportos() {
+        return aeroportos.findAll(Sort.by("codigo")).stream().map(mapper::paraDominio).toList();
+    }
+
+    @Override
+    public List<Aerovia> listarAerovias() {
+        return aerovias.findAll(Sort.by("id")).stream().map(mapper::paraDominio).toList();
+    }
+
+    @Override
+    public List<Piloto> listarPilotos() {
+        return pilotos.findAll(Sort.by("id")).stream().map(mapper::paraDominio).toList();
+    }
+
+    @Override
+    public List<Aeronave> listarAeronaves() {
+        return aeronaves.findAll(Sort.by("prefixo")).stream().map(mapper::paraDominio).toList();
     }
 }

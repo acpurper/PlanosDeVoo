@@ -14,6 +14,9 @@ public interface ReservaVagaJpaRepository extends JpaRepository<ReservaVagaEntit
 
     List<ReservaVagaEntity> findByPlanoIdOrderBySlotInicio(Long planoId);
 
+    List<ReservaVagaEntity> findByVaga_AeroportoCodigoAndSlotInicioGreaterThanEqualAndSlotInicioLessThanOrderBySlotInicio(
+            String aeroportoCodigo, LocalDateTime inicio, LocalDateTime fim);
+
     @Modifying(flushAutomatically = true)
     @Query("delete from ReservaVagaEntity r where r.planoId = :planoId")
     int apagarDoPlano(Long planoId);

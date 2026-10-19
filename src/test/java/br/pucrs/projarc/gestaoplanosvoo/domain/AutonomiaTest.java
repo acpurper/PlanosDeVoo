@@ -1,9 +1,11 @@
 package br.pucrs.projarc.gestaoplanosvoo.domain;
 
+import br.pucrs.projarc.gestaoplanosvoo.domain.model.Aerovia;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.CodigoViolacao;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.PlanoDeVoo;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.Pouso;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.ResultadoValidacao;
+import br.pucrs.projarc.gestaoplanosvoo.domain.model.aeronave.AeronaveParticular;
 import org.junit.jupiter.api.Test;
 
 import static br.pucrs.projarc.gestaoplanosvoo.domain.Malha.*;
@@ -54,5 +56,20 @@ class AutonomiaTest {
         PlanoDeVoo plano = plano(PARTICULAR_CURTA, POA, GRU, as(9, 0));
         plano.adicionarTrecho(R2, alt(25_000), as(9, 0), new Pouso(vaga(GRU, 1), 30));
         assertThat(plano.validar(TUDO_LIVRE).contem(CodigoViolacao.AUTONOMIA_EXCEDIDA)).isTrue();
+    }
+
+    @Test
+    void distanciaExatamenteNoLimiteDe85PorCentoPassa() {
+        // autonomia de 1.000 km -> limite seguro de 850 km; aerovia de teste com exatamente 850 km
+        var aeronave = new AeronaveParticular("PP-TST", 850, 1000, "Teste");
+        var r850 = new Aerovia("RX", POA, FLN, 850);
+        PlanoDeVoo plano = plano(aeronave, POA, FLN, as(9, 0));
+        plano.adicionarTrecho(r850, alt(25_000), as(9, 0), new Pouso(vaga(FLN, 1), 30));
+        assertThat(plano.validar(TUDO_LIVRE).contem(CodigoViolacao.AUTONOMIA_EXCEDIDA)).isFalse();
+
+        var r851 = new Aerovia("RY", POA, FLN, 851);
+        PlanoDeVoo acima = plano(aeronave, POA, FLN, as(9, 0));
+        acima.adicionarTrecho(r851, alt(25_000), as(9, 0), new Pouso(vaga(FLN, 1), 30));
+        assertThat(acima.validar(TUDO_LIVRE).contem(CodigoViolacao.AUTONOMIA_EXCEDIDA)).isTrue();
     }
 }

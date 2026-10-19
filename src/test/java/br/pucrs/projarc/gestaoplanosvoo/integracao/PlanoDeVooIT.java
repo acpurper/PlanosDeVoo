@@ -4,6 +4,8 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.model.Altitude;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.SlotHorario;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.Vaga;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.Reserva;
+import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.ReservaAerovia;
+import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.ReservaVaga;
 import br.pucrs.projarc.gestaoplanosvoo.domain.repository.ReservaRepositoryPort;
 import br.pucrs.projarc.gestaoplanosvoo.infrastructure.persistence.adapters.ReservaRepositoryAdapter;
 import org.junit.jupiter.api.AfterEach;
@@ -25,6 +27,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +52,9 @@ class PlanoDeVooIT {
 
     static volatile CyclicBarrier barreira;
 
+    /** Tempo que a aprovação segura o lock do plano depois da barreira, para outra requisição chegar nesse meio. */
+    static volatile long pausaAposBarreiraMs;
+
     @TestConfiguration
     static class SincronizacaoDeAprovacoes {
 
@@ -62,6 +68,7 @@ class PlanoDeVooIT {
                     if (b != null) {
                         try {
                             b.await(20, TimeUnit.SECONDS);
+                            Thread.sleep(pausaAposBarreiraMs);
                         } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
                             throw new IllegalStateException(e);
                         }
@@ -77,6 +84,16 @@ class PlanoDeVooIT {
                 @Override
                 public List<Reserva> listarDoPlano(Long planoId) {
                     return real.listarDoPlano(planoId);
+                }
+
+                @Override
+                public List<ReservaAerovia> listarDaAerovia(String aeroviaId, LocalDateTime inicio, LocalDateTime fim) {
+                    return real.listarDaAerovia(aeroviaId, inicio, fim);
+                }
+
+                @Override
+                public List<ReservaVaga> listarDoAeroporto(String aeroportoCodigo, LocalDateTime inicio, LocalDateTime fim) {
+                    return real.listarDoAeroporto(aeroportoCodigo, inicio, fim);
                 }
 
                 @Override
@@ -101,6 +118,7 @@ class PlanoDeVooIT {
     @AfterEach
     void limparBarreira() {
         barreira = null;
+        pausaAposBarreiraMs = 0;
     }
 
     @Test
@@ -191,6 +209,28 @@ class PlanoDeVooIT {
     }
 
     @Test
+    void edicaoDuranteAAprovacaoEsperaOLockERecebe409() throws Exception {
+        long id = criarPlano("PR-AZA", "CWB", "GRU", "2026-12-05T20:00");
+        adicionarTrecho(id, "R6", 34_000, "2026-12-05T20:00", 30, 30);
+
+        // a aprovação para depois de validar, segurando o lock do plano; a edição chega nesse meio
+        barreira = new CyclicBarrier(2);
+        pausaAposBarreiraMs = 1_500;
+        CompletableFuture<ResponseEntity<Map<String, Object>>> aprovacao =
+                CompletableFuture.supplyAsync(() -> post("/planos/" + id + "/aprovacao"));
+        barreira.await(20, TimeUnit.SECONDS);
+        // incluir trecho só insere linhas em "trecho" e não incrementa a versão do plano
+        ResponseEntity<Map<String, Object>> edicao = http.exchange("/planos/" + id + "/trechos", HttpMethod.POST,
+                new HttpEntity<>(trecho("R7", 35_000, "2026-12-05T21:00", 3, 30)), MAPA);
+
+        assertThat(aprovacao.get(30, TimeUnit.SECONDS).getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(edicao.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(edicao.getBody()).containsEntry("codigo", "PLANO_NAO_EDITAVEL");
+        assertThat(jdbc.queryForObject("select count(*) from trecho where plano_id = ?", Integer.class, id))
+                .as("o percurso aprovado não pode mudar depois das reservas").isEqualTo(1);
+    }
+
+    @Test
     void cancelarPlanoFuturoLiberaAsReservas() {
         long id = criarPlano("PP-JAT", "CWB", "GRU", "2026-12-04T09:00");
         adicionarTrecho(id, "R6", 25_000, "2026-12-04T09:00", 7, 60);
@@ -246,8 +286,8 @@ class PlanoDeVooIT {
 
         assertThat(r.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(r.getBody()).containsEntry("situacao", "APROVADO");
-        assertThat((List<?>) corpo(r).get("trechos")).hasSize(1);
-        assertThat((List<?>) corpo(r).get("reservas")).isNotEmpty();
+        assertThat((List<Object>) corpo(r).get("trechos")).hasSize(1);
+        assertThat((List<Object>) corpo(r).get("reservas")).isNotEmpty();
     }
 
     @Test
@@ -320,6 +360,97 @@ class PlanoDeVooIT {
         assertThat(r.getBody()).containsEntry("codigo", "PLANO_NAO_CANCELAVEL");
     }
 
+    @Test
+    void abandonarPlanoEmEdicaoOMantemConsultavelESemAlteracoes() {
+        long id = criarPlano("PR-AZA", "CWB", "GRU", "2026-12-09T10:00");
+        adicionarTrecho(id, "R6", 30_000, "2026-12-09T10:00", 10, 30);
+
+        ResponseEntity<Map<String, Object>> r = post("/planos/" + id + "/abandono");
+
+        assertThat(r.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(corpo(r)).containsEntry("situacao", "ABANDONADO");
+        assertThat(reservasDoPlano(id)).isZero();
+        assertThat(get("/planos/" + id).getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(post("/planos/" + id + "/validacao").getBody()).containsEntry("codigo", "PLANO_NAO_EDITAVEL");
+        assertThat(post("/planos/" + id + "/aprovacao").getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(post("/planos/" + id + "/abandono").getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void abandonarPlanoAprovadoResponde409() {
+        ResponseEntity<Map<String, Object>> r = post("/planos/2/abandono");
+
+        assertThat(r.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(r.getBody()).containsEntry("codigo", "PLANO_NAO_EDITAVEL");
+        assertThat(situacao(2)).isEqualTo("APROVADO");
+    }
+
+    @Test
+    void listarPorSituacaoDevolveSoPlanosDaquelaSituacao() {
+        for (String s : List.of("EM_EDICAO", "APROVADO", "CANCELADO", "ABANDONADO")) {
+            ResponseEntity<List<Map<String, Object>>> r = http.exchange("/planos?situacao=" + s, HttpMethod.GET, null, LISTA);
+            assertThat(r.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(r.getBody()).as("planos %s da carga inicial", s).isNotEmpty()
+                    .allSatisfy(p -> assertThat(p).containsEntry("situacao", s));
+        }
+        ResponseEntity<List<Map<String, Object>>> todos = http.exchange("/planos", HttpMethod.GET, null, LISTA);
+        assertThat(todos.getBody()).hasSizeGreaterThanOrEqualTo(9);
+    }
+
+    @Test
+    void listarComSituacaoDesconhecidaResponde400() {
+        ResponseEntity<Map<String, Object>> r = get("/planos?situacao=VOANDO");
+
+        assertThat(r.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(r.getBody()).containsEntry("codigo", "REQUISICAO_INVALIDA");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void altitudesLivresRefletemAsReservasDaCargaInicial() {
+        // Plano 1: R2 a 30.000 nos slots 08h e 09h
+        ResponseEntity<Map<String, Object>> r = get("/aerovias/R2/altitudes-livres?inicio=2026-12-01T08:30&fim=2026-12-01T09:30");
+
+        assertThat(r.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat((List<Object>) corpo(r).get("altitudesDisponiveis")).hasSize(10).doesNotContain(30_000);
+        assertThat((List<Object>) corpo(r).get("altitudesOcupadas")).hasSize(1);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void vagasLivresRefletemAsReservasDaCargaInicial() {
+        // Plano 1: GRU-1 nos slots 09h e 10h
+        ResponseEntity<Map<String, Object>> r = get("/aeroportos/GRU/vagas-livres?inicio=2026-12-01T10:00&fim=2026-12-01T10:30");
+
+        assertThat(r.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat((List<Object>) corpo(r).get("vagasDisponiveis")).doesNotContain(1).contains(2);
+        assertThat(corpo(r)).containsEntry("totalVagas", 115);
+    }
+
+    @Test
+    void consultaDeDisponibilidadeComPeriodoInvalidoOuRecursoInexistente() {
+        assertThat(get("/aerovias/R2/altitudes-livres?inicio=2026-12-01T10:00&fim=2026-12-01T09:00").getBody())
+                .containsEntry("codigo", "PERIODO_INVALIDO");
+        assertThat(get("/aerovias/R99/altitudes-livres?inicio=2026-12-01T08:00&fim=2026-12-01T09:00").getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(get("/aeroportos/GRU/vagas-livres?inicio=2026-12-01T08:00").getBody())
+                .containsEntry("codigo", "REQUISICAO_INVALIDA");
+        assertThat(get("/aeroportos/GRU/vagas-livres?inicio=ontem&fim=hoje").getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void consultasDaMalhaEDosRecursos() {
+        assertThat(http.exchange("/aeroportos", HttpMethod.GET, null, LISTA).getBody()).hasSizeGreaterThanOrEqualTo(4);
+        assertThat(http.exchange("/aerovias", HttpMethod.GET, null, LISTA).getBody()).hasSizeGreaterThanOrEqualTo(8);
+        assertThat(http.exchange("/pilotos", HttpMethod.GET, null, LISTA).getBody()).hasSizeGreaterThanOrEqualTo(4);
+        assertThat(http.exchange("/aeronaves", HttpMethod.GET, null, LISTA).getBody())
+                .extracting(a -> a.get("categoria")).contains("PARTICULAR", "PASSAGEIROS", "CARGA");
+        assertThat(get("/aerovias/R1").getBody()).containsEntry("origem", "POA").containsEntry("destino", "FLN");
+        assertThat(get("/aeronaves/PR-CGB").getBody()).containsEntry("capacidadeToneladas", 12.0);
+        assertThat(get("/aeroportos/XXX").getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
     private static Map<String, Object> corpo(ResponseEntity<Map<String, Object>> resposta) {
         return Objects.requireNonNull(resposta.getBody(), "resposta sem corpo");
     }
@@ -350,6 +481,13 @@ class PlanoDeVooIT {
             t.put("pouso", Map.of("vaga", vaga, "permanenciaMin", permanencia));
         }
         return t;
+    }
+
+    private static final ParameterizedTypeReference<List<Map<String, Object>>> LISTA = new ParameterizedTypeReference<>() {
+    };
+
+    private ResponseEntity<Map<String, Object>> get(String caminho) {
+        return http.exchange(caminho, HttpMethod.GET, null, MAPA);
     }
 
     private ResponseEntity<Map<String, Object>> post(String caminho) {

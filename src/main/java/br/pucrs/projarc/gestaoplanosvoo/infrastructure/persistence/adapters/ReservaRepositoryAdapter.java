@@ -19,6 +19,7 @@ import jakarta.persistence.EntityManager;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -81,12 +82,32 @@ public class ReservaRepositoryAdapter implements ReservaRepositoryPort {
     @Override
     public List<Reserva> listarDoPlano(Long planoId) {
         List<Reserva> reservas = new ArrayList<>();
-        reservasAerovia.findByPlanoIdOrderBySlotInicio(planoId).forEach(e -> reservas.add(new ReservaAerovia(
-                e.getId(), e.getPlanoId(), new SlotHorario(e.getSlotInicio()),
-                mapper.paraDominio(e.getAerovia()), new Altitude(e.getAltitudePes()))));
-        reservasVaga.findByPlanoIdOrderBySlotInicio(planoId).forEach(e -> reservas.add(new ReservaVaga(
-                e.getId(), e.getPlanoId(), new SlotHorario(e.getSlotInicio()), mapper.paraDominio(e.getVaga()))));
+        reservasAerovia.findByPlanoIdOrderBySlotInicio(planoId).forEach(e -> reservas.add(paraDominio(e)));
+        reservasVaga.findByPlanoIdOrderBySlotInicio(planoId).forEach(e -> reservas.add(paraDominio(e)));
         reservas.sort(Comparator.comparing((Reserva r) -> r.getSlot().inicio()));
         return reservas;
+    }
+
+    @Override
+    public List<ReservaAerovia> listarDaAerovia(String aeroviaId, LocalDateTime inicio, LocalDateTime fim) {
+        return reservasAerovia
+                .findByAerovia_IdAndSlotInicioGreaterThanEqualAndSlotInicioLessThanOrderBySlotInicio(aeroviaId, inicio, fim)
+                .stream().map(this::paraDominio).toList();
+    }
+
+    @Override
+    public List<ReservaVaga> listarDoAeroporto(String aeroportoCodigo, LocalDateTime inicio, LocalDateTime fim) {
+        return reservasVaga
+                .findByVaga_AeroportoCodigoAndSlotInicioGreaterThanEqualAndSlotInicioLessThanOrderBySlotInicio(aeroportoCodigo, inicio, fim)
+                .stream().map(this::paraDominio).toList();
+    }
+
+    private ReservaAerovia paraDominio(ReservaAeroviaEntity e) {
+        return new ReservaAerovia(e.getId(), e.getPlanoId(), new SlotHorario(e.getSlotInicio()),
+                mapper.paraDominio(e.getAerovia()), new Altitude(e.getAltitudePes()));
+    }
+
+    private ReservaVaga paraDominio(ReservaVagaEntity e) {
+        return new ReservaVaga(e.getId(), e.getPlanoId(), new SlotHorario(e.getSlotInicio()), mapper.paraDominio(e.getVaga()));
     }
 }

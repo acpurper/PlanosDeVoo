@@ -51,4 +51,11 @@ class SlotHorarioTest {
     void slotForaDaHoraCheiaEhRejeitado() {
         assertThatThrownBy(() -> new SlotHorario(as(15, 30))).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void periodoConsultadoPrecisaTerminarDepoisDeComecar() {
+        assertThat(SlotHorario.doPeriodo(as(9, 0), as(10, 0))).extracting(SlotHorario::inicio).containsExactly(as(9, 0));
+        assertThatThrownBy(() -> SlotHorario.doPeriodo(as(10, 0), as(10, 0)))
+                .hasMessageContaining("posterior");
+    }
 }

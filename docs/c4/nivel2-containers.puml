@@ -13,7 +13,7 @@ Person(operador, "Operador de Voo", "Usuário do sistema")
 System_Ext(cliente, "Cliente HTTP / Swagger UI", "Swagger UI servido pela API, VS Code REST Client (docs/demo.http), curl ou Postman")
 
 System_Boundary(c1, "Sistema de Gestão de Planos de Voo") {
-    Container(api, "Backend API", "Java 21 / Spring Boot 3.5", "API REST (UC02, UC03, UC06, UC07, UC11), validação de domínio, controle transacional das reservas e documentação OpenAPI.")
+    Container(api, "Backend API", "Java 21 / Spring Boot 3.5", "API REST (UC01 a UC11), validação de domínio, controle transacional das reservas e documentação OpenAPI.")
     ContainerDb(db, "Banco de Dados Relacional", "PostgreSQL 16 (Docker Compose)", "Malha, vagas, frota, pilotos, planos, trechos e reservas por slot com restrições UNIQUE. Esquema e carga pelo Flyway.")
 }
 

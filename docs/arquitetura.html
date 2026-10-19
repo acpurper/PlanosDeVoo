@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arquitetura — Sistema de Gestão de Planos de Voo</title>
+<!-- Fonte de docs/arquitetura.pdf. Para regenerar o PDF (a partir da pasta docs/):
+     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --no-pdf-header-footer \
+       --print-to-pdf=arquitetura.pdf arquitetura.html
+     O apêndice reproduz as fontes .puml; ao alterar um diagrama, atualize também o trecho correspondente. -->
+<style>
+@page { size: A4; margin: 22mm 20mm 20mm 20mm; }
+:root { --roxo: #4A148C; --roxo-medio: #6A1B9A; --roxo-claro: #F3EFF8; --texto: #222; --cinza: #666; --borda: #D9D2E3; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; color: var(--texto);
+       font-size: 10.5pt; line-height: 1.55; margin: 0; background: #fff; }
+h1 { color: var(--roxo); font-size: 19pt; margin: 26pt 0 10pt; padding-bottom: 5pt; border-bottom: 1.5pt solid var(--roxo-medio);
+     break-after: avoid; }
+h2 { color: var(--roxo); font-size: 13.5pt; margin: 18pt 0 6pt; break-after: avoid; }
+h3 { color: var(--roxo-medio); font-size: 11pt; margin: 12pt 0 3pt; break-after: avoid; }
+p { margin: 0 0 8pt; }
+code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 8.8pt; background: #EEE9F4; color: #3a2a55;
+       padding: 0.5pt 3pt; border-radius: 2pt; }
+.destaque { background: var(--roxo-claro); border-left: 3.5pt solid var(--roxo-medio); padding: 8pt 11pt; margin: 8pt 0 10pt; }
+.destaque p:last-child { margin-bottom: 0; }
+table { width: 100%; border-collapse: collapse; margin: 6pt 0 12pt; font-size: 8.9pt; line-height: 1.4; }
+thead { display: table-header-group; }
+th { background: var(--roxo); color: #fff; text-align: left; padding: 5pt 6pt; font-weight: 600; }
+td { border: 0.6pt solid var(--borda); padding: 4.5pt 6pt; vertical-align: top; }
+tbody tr:nth-child(even) td { background: #FAF8FC; }
+tr { break-inside: avoid; }
+figure { margin: 10pt 0 14pt; text-align: center; break-inside: avoid; }
+figure img { max-width: 100%; max-height: 210mm; }
+figcaption { font-size: 9pt; color: var(--cinza); margin-top: 5pt; }
+pre { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 7.6pt; line-height: 1.35; background: #F7F5FA;
+      border: 0.6pt solid var(--borda); padding: 7pt 9pt; white-space: pre-wrap; word-break: break-word; margin: 4pt 0 10pt; }
+pre.arvore { white-space: pre; font-size: 7.4pt; break-inside: avoid; }
+.capa { height: 250mm; display: flex; flex-direction: column; justify-content: center; text-align: center; break-after: page; }
+.capa .titulo { color: var(--roxo); font-size: 26pt; font-weight: 700; margin-bottom: 18pt; }
+.capa .sub { color: var(--cinza); font-size: 11.5pt; line-height: 1.6; margin-bottom: 26pt; }
+.capa .autores { font-size: 11pt; line-height: 1.75; margin-bottom: 26pt; }
+.capa .data { color: var(--cinza); font-size: 11pt; }
+.quebra { break-before: page; }
+@page paisagem { size: A4 landscape; margin: 14mm 14mm; }
+.paisagem { page: paisagem; break-before: page; break-after: page; margin: 0; }
+.paisagem img { max-height: 165mm; max-width: 100%; }
+ol.passos { padding-left: 16pt; margin: 4pt 0 10pt; }
+ol.passos li { margin-bottom: 3pt; }
+</style>
+</head>
+<body>
+
+<section class="capa">
+  <div class="titulo">Sistema de Gestão de Planos de Voo</div>
+  <div class="sub">Trabalho Final — Projeto de Arquitetura de Software (PUCRS)<br>
+    Documentação de projeto e arquitetura — Entrega final</div>
+  <div class="autores">Ana Clara Purper<br>Bianca Piassini<br>Maria Melloni<br>Tarciso Mota</div>
+  <div class="data">Outubro de 2026</div>
+</section>
+
+<h1>1 Introdução</h1>
+<p>O sistema provê o backend e a arquitetura para criação, validação, controle do ciclo de vida e reserva de recursos
+de planos de voo. O domínio tem 19 elementos (15 classes, 1 enumeração e 3 objetos de valor) organizados em torno do
+agregado <code>PlanoDeVoo</code>. O modelo prevê 11 casos de uso para o ator Operador de Voo.</p>
+<div class="destaque"><p><strong>Escopo desta entrega:</strong> os 11 casos de uso estão implementados e expostos pela
+API REST (UC01 a UC11). Aeroportos, aerovias, pilotos e aeronaves são dados pré-existentes, carregados por script
+versionado (migrações Flyway), por orientação do professor: não há casos de uso de cadastro. A <em>consulta</em>
+desses dados faz parte do UC01.</p></div>
+<p>O documento tem duas partes: (1) modelo de domínio em UML, dicionário, decisões de modelagem, casos de uso e
+rastreabilidade; (2) arquitetura em C4 (níveis 1 a 3) da versão implementada, estrutura do projeto, persistência e
+decisões de implementação. Os diagramas desta versão correspondem ao código entregue.</p>
+<p><strong>Convenções:</strong> horários em <code>LocalDateTime</code>; distâncias em km; velocidades em km/h; altitudes em
+pés; permanências em minutos; atributos com “/” são derivados (calculados pelo sistema).</p>
+
+<h1>2 Parte 1 — Domínio e casos de uso</h1>
+<h2>2.1 Diagrama de domínio</h2>
+<p>O <code>PlanoDeVoo</code> concentra o ciclo de vida e é dono do percurso (Trechos e Pousos) e das Reservas. As regras de
+categoria ficam fora da hierarquia de aeronaves, numa estratégia (<code>RegraOperacao</code>). Leitura: o plano compõe
+trechos; cada trecho usa uma aerovia e pode terminar em pouso numa vaga; a aprovação gera reservas por slot de 1 hora.
+<code>Altitude</code>, <code>SlotHorario</code> e <code>ResultadoValidacao</code> são objetos de valor e aparecem como tipos de
+atributo.</p>
+<figure class="paisagem"><img src="dominio.png" alt="Modelo de domínio em UML">
+<figcaption>Figura 1 — Modelo de domínio (fonte PlantUML: docs/dominio.puml).</figcaption></figure>
+
+<h2>2.2 Dicionário das classes</h2>
+<table class=""><thead><tr><th>Classe</th><th>Tipo</th><th>Atributos principais</th><th>Responsabilidade</th></tr></thead><tbody><tr><td>Aeroporto</td><td>Entidade</td><td>codigo (único), nome</td><td>Ponto da malha aérea; agrega suas vagas</td></tr><tr><td>Vaga</td><td>Entidade</td><td>numero</td><td>Posição de estacionamento de um aeroporto; recurso reservável</td></tr><tr><td>Aerovia</td><td>Entidade imutável</td><td>id (único), distanciaKm</td><td>Ligação orientada origem → destino; calcula a duração do voo para uma velocidade (arredondada para cima ao minuto)</td></tr><tr><td>Altitude</td><td>Objeto de valor</td><td>pes (25.000–35.000, passo 1.000)</td><td>Garante que só existam níveis de voo válidos</td></tr><tr><td>Piloto</td><td>Entidade</td><td>id, nome</td><td>Responsável pelo plano (sem regras próprias)</td></tr><tr><td>Aeronave</td><td>Entidade abstrata</td><td>prefixo (único), velocidadeCruzeiroKmh, autonomiaKm</td><td>Calcula a autonomia segura (85%) e delega a regra de operação às suas RegraOperacao</td></tr><tr><td>AeronaveParticular</td><td>Subclasse</td><td>empresaManutencao</td><td>Categoria particular</td></tr><tr><td>AeronavePassageiros</td><td>Subclasse</td><td>companhiaAerea, capacidadePassageiros</td><td>Categoria comercial de passageiros</td></tr><tr><td>AeronaveCarga</td><td>Subclasse</td><td>companhiaAerea, capacidadeToneladas</td><td>Categoria comercial de carga</td></tr><tr><td>RegraOperacao</td><td>Interface (Strategy)</td><td>—</td><td>Diz se uma aeronave pode usar uma altitude num intervalo. Implementações: AltitudesPermitidas, AltitudeMinima, JanelaHoraria</td></tr><tr><td>PlanoDeVoo</td><td>Entidade (raiz de agregado)</td><td>id, dataHoraPartida, situacao</td><td>Controla o ciclo de vida, guarda o percurso e as reservas e valida o plano</td></tr><tr><td>SituacaoPlano</td><td>Enumeração</td><td>EM_EDICAO, APROVADO, CANCELADO, ABANDONADO</td><td>Estados possíveis do plano</td></tr><tr><td>Trecho</td><td>Entidade (parte do plano)</td><td>ordem, altitude, horarioEntrada, /horarioChegada</td><td>Um uso de aerovia no percurso; calcula a chegada e os slots ocupados</td></tr><tr><td>Pouso</td><td>Objeto de valor</td><td>permanenciaMin</td><td>Parada num aeroporto, com a vaga pretendida; ausência = sobrevoo</td></tr><tr><td>SlotHorario</td><td>Objeto de valor</td><td>inicio (hora cheia)</td><td>Janela de 1 hora usada no controle de ocupação</td></tr><tr><td>Reserva</td><td>Entidade abstrata</td><td>slot</td><td>Ocupação efetivada na aprovação</td></tr><tr><td>ReservaAerovia</td><td>Subclasse</td><td>aerovia, altitude</td><td>Ocupa uma altitude de uma aerovia num slot</td></tr><tr><td>ReservaVaga</td><td>Subclasse</td><td>vaga</td><td>Ocupa uma vaga num slot</td></tr><tr><td>ResultadoValidacao</td><td>Objeto de valor</td><td>violacoes[] (Violacao: codigo, trecho, mensagem)</td><td>Lista todas as violações encontradas, não só a primeira</td></tr></tbody></table>
+
+<h2>2.3 Decisões de modelagem</h2>
+<table class=""><thead><tr><th>#</th><th>Decisão adotada</th><th>Alternativa considerada</th><th>Justificativa</th></tr></thead><tbody><tr><td>D1</td><td>Aeronave abstrata com subclasses por categoria; regra de altitude/horário extraída para a interface RegraOperacao (Strategy)</td><td>Uma classe Aeronave com campo categoria e if/switch nas regras</td><td>O enunciado avisa que virão novas categorias e regras. Com Strategy, uma regra nova é uma classe nova, sem mexer nas existentes (aberto/fechado)</td></tr><tr><td>D2</td><td>PlanoDeVoo é a raiz do agregado: Trechos e Pousos só existem dentro dele e só mudam através dele</td><td>Trechos como entidades independentes, editadas direto pela API</td><td>Garante a regra “somente planos em edição podem ser modificados” num só lugar</td></tr><tr><td>D3</td><td>Pouso opcional no Trecho: sem pouso = sobrevoo</td><td>Enum tipoChegada + campos de vaga/permanência que podem ficar nulos</td><td>Evita estados inválidos (sobrevoo com vaga). A regra de pouso obrigatório no destino fica na validação</td></tr><tr><td>D4</td><td>horarioChegada é derivado (distância ÷ velocidade); o usuário informa só a entrada</td><td>Usuário informa entrada e chegada e o sistema compara</td><td>Uma única fonte de verdade. A validação compara a entrada do trecho seguinte com a chegada calculada</td></tr><tr><td>D5</td><td>Uma Reserva por slot de 1 hora, com unicidade (aerovia, altitude, slot) e (vaga, slot)</td><td>Uma reserva por intervalo (início–fim) e checagem de sobreposição</td><td>A unicidade vira restrição no banco. Dois planos concorrentes não conseguem reservar o mesmo slot, e a aprovação fica atômica</td></tr><tr><td>D6</td><td>Aerovia imutável e referenciada por id</td><td>Permitir editar distância ou excluir</td><td>Exigência do enunciado: preserva os planos e reservas que já usam a aerovia</td></tr><tr><td>D7</td><td>Vaga é uma entidade composta pelo Aeroporto; a quantidade de vagas é implícita pela composição</td><td>Atributo quantidadeVagas no Aeroporto e referência por número</td><td>O plano indica a vaga pretendida e a reserva aponta para uma vaga específica. Modelar como entidade permite unicidade (vaga, slot) direto no banco</td></tr></tbody></table>
+
+<h2>2.4 Diagrama de casos de uso</h2>
+<p>O Operador de Voo interage com a API REST por 11 casos de uso. A aprovação (UC07) inclui obrigatoriamente a
+validação (UC06): a aprovação repete toda a validação com a disponibilidade do momento exato (seção 6.5 do
+enunciado).</p>
+<figure><img src="casos-de-uso.png" alt="Diagrama de casos de uso" style="max-height: 120mm">
+<figcaption>Figura 2 — Casos de uso: 1 ator, 11 casos e 1 «include» (fonte: docs/casos-de-uso.puml).</figcaption></figure>
+
+<h2>2.5 Casos de uso e endpoints</h2>
+<p>Todos os casos de uso estão implementados. A tabela liga cada um à sua regra principal e ao endpoint que o
+expõe.</p>
+<table class=""><thead><tr><th>ID</th><th>Caso de uso</th><th>Regra-chave</th><th>Endpoint</th></tr></thead><tbody><tr><td>UC01</td><td>Consultar malha e recursos</td><td>Aeroportos, aerovias, pilotos e frota (dados carregados por script; só leitura)</td><td><code>GET /aeroportos, /aerovias, /pilotos, /aeronaves (e por id)</code></td></tr><tr><td>UC02</td><td>Criar plano de voo</td><td>Nasce em edição, sem trechos</td><td><code>POST /planos</code></td></tr><tr><td>UC03</td><td>Editar percurso do plano</td><td>Só em edição; não reserva recursos</td><td><code>POST, PUT, DELETE /planos/{id}/trechos</code></td></tr><tr><td>UC04</td><td>Consultar altitudes disponíveis em aerovia</td><td>Situação do momento; não reserva</td><td><code>GET /aerovias/{id}/altitudes-livres</code></td></tr><tr><td>UC05</td><td>Consultar vagas disponíveis em aeroporto</td><td>Situação do momento; não reserva</td><td><code>GET /aeroportos/{codigo}/vagas-livres</code></td></tr><tr><td>UC06</td><td>Validar plano</td><td>Não muda estado nem reserva</td><td><code>POST /planos/{id}/validacao</code></td></tr><tr><td>UC07</td><td>Aprovar plano</td><td>«include» UC06; reserva tudo ou nada</td><td><code>POST /planos/{id}/aprovacao</code></td></tr><tr><td>UC08</td><td>Consultar plano por identificador</td><td>Qualquer situação, com trechos, horários e reservas</td><td><code>GET /planos/{id}</code></td></tr><tr><td>UC09</td><td>Listar planos por situação</td><td>Inclui cancelados e abandonados</td><td><code>GET /planos?situacao=</code></td></tr><tr><td>UC10</td><td>Abandonar plano</td><td>Só em edição; nada a liberar</td><td><code>POST /planos/{id}/abandono</code></td></tr><tr><td>UC11</td><td>Cancelar plano</td><td>Só aprovado com partida futura; libera reservas</td><td><code>POST /planos/{id}/cancelamento</code></td></tr></tbody></table>
+<p>UC03 agrupa as operações de edição: <code>POST /planos/{id}/trechos</code> (adicionar), <code>PUT</code> e <code>DELETE</code>
+<code>/planos/{id}/trechos/{ordem}</code> (alterar e remover), incluindo altitude, sobrevoo ou pouso, vaga e permanência.
+UC04 e UC05 recebem o período em <code>inicio</code> e <code>fim</code>.</p>
+
+<h2>2.6 Descrição dos casos de uso</h2>
+<h3>UC01 — Consultar malha e recursos</h3>
+<p><strong>Fluxo:</strong> o operador lista aeroportos (com o total de vagas), aerovias (origem, destino e distância),
+pilotos e aeronaves (com os dados da categoria e as regras de operação), ou consulta um item pelo identificador.
+<strong>Exceções:</strong> item inexistente (404). <strong>Pós-condição:</strong> nada é alterado.</p>
+<h3>UC02 — Criar plano de voo</h3>
+<p><strong>Pré-condição:</strong> piloto, aeronave e aeroportos existentes. <strong>Fluxo:</strong> o operador informa
+piloto, aeronave, origem, destino e partida; o sistema resolve as referências e cria o plano EM_EDICAO, sem trechos.
+<strong>Exceções:</strong> referência inexistente (404); origem igual ao destino (422); campos ausentes (400).
+<strong>Pós-condição:</strong> plano em edição, sem reservas.</p>
+<h3>UC03 — Editar percurso</h3>
+<p><strong>Pré-condição:</strong> plano EM_EDICAO. <strong>Fluxo:</strong> o plano é carregado com bloqueio e recebe a
+inclusão, alteração ou remoção de trechos; a resposta traz duração e chegada calculadas de cada trecho.
+<strong>Exceções:</strong> plano fora de edição (409); plano, trecho, aerovia ou vaga inexistente (404); altitude
+inválida (422). <strong>Pós-condição:</strong> percurso atualizado, sem reservas.</p>
+<h3>UC04 e UC05 — Consultar altitudes e vagas disponíveis</h3>
+<p><strong>Fluxo:</strong> o operador informa a aerovia (ou o aeroporto) e o período; o sistema calcula os slots de
+1 hora que o período toca e devolve as altitudes (ou vagas) livres em <em>todos</em> esses slots, além das ocupadas,
+com o slot e o plano que as reservou. <strong>Exceções:</strong> recurso inexistente (404); parâmetro ausente ou mal
+formatado (400); fim não posterior ao início (422 PERIODO_INVALIDO). <strong>Pós-condição:</strong> nada é
+reservado; a aprovação continua revalidando por conta própria.</p>
+<h3>UC06 — Validar plano</h3>
+<p><strong>Pré-condição:</strong> plano EM_EDICAO. <strong>Fluxo:</strong> verifica percurso contínuo, horários e
+durações, regras de operação da categoria, limite de 85% da autonomia e disponibilidade de slots de aerovias e vagas.
+<strong>Exceções:</strong> plano fora de edição (409). <strong>Pós-condição:</strong> laudo com todas as violações
+(200), sem alterar estado nem criar reservas.</p>
+<h3>UC07 — Aprovar plano</h3>
+<p><strong>Pré-condição:</strong> plano EM_EDICAO. <strong>Fluxo:</strong> numa transação, bloqueia o plano
+(<code>SELECT … FOR UPDATE</code>), executa UC06 com a disponibilidade atual, grava as reservas por slot (com flush) e passa
+o plano a APROVADO. <strong>Exceções:</strong> violação de regra (422 com lista); conflito concorrente de slot (409,
+rollback total); plano fora de edição (409). <strong>Pós-condição:</strong> plano aprovado com reservas únicas, ou
+nada gravado.</p>
+<h3>UC08 e UC09 — Consultar plano e listar por situação</h3>
+<p><strong>Fluxo:</strong> <code>GET /planos/{id}</code> devolve o plano completo, em qualquer situação, com trechos,
+horários calculados e reservas. <code>GET /planos?situacao=</code> devolve o resumo dos planos EM_EDICAO, APROVADO,
+CANCELADO ou ABANDONADO; sem o parâmetro, todos. <strong>Exceções:</strong> plano inexistente (404); situação
+desconhecida (400). <strong>Pós-condição:</strong> nada é alterado.</p>
+<h3>UC10 — Abandonar plano</h3>
+<p><strong>Pré-condição:</strong> plano EM_EDICAO. <strong>Fluxo:</strong> numa transação, bloqueia o plano e o passa
+a ABANDONADO. <strong>Exceções:</strong> plano fora de edição (409 PLANO_NAO_EDITAVEL). <strong>Pós-condição:</strong>
+plano congelado para consulta; sem reservas a liberar.</p>
+<h3>UC11 — Cancelar plano</h3>
+<p><strong>Pré-condição:</strong> plano APROVADO com partida futura. <strong>Fluxo:</strong> numa transação, remove
+todas as reservas e passa o plano a CANCELADO, preservando seus dados. <strong>Exceções:</strong> plano não aprovado
+(409 PLANO_NAO_CANCELAVEL); voo já executado (409 VOO_JA_EXECUTADO). <strong>Pós-condição:</strong> slots
+liberados.</p>
+
+<h2>2.7 Rastreabilidade: regras do enunciado → modelo</h2>
+<table class=""><thead><tr><th>Regra (seção do enunciado)</th><th>Onde fica no modelo / código</th><th>Caso de uso</th></tr></thead><tbody><tr><td>Aerovias orientadas e imutáveis (2)</td><td>Aerovia: origem e destino distintos, sem operações de alteração; entidade @Immutable</td><td>UC01, UC03</td></tr><tr><td>Consultar a rede aérea, pilotos e aeronaves (2, 8.1)</td><td>ConsultarMalhaUseCase sobre MalhaRepositoryPort</td><td>UC01</td></tr><tr><td>Particular só a 25.000–27.000 pés (3)</td><td>AltitudesPermitidas, na categoria particular</td><td>UC06, UC07</td></tr><tr><td>Passageiros só a partir de 28.000 pés (3)</td><td>AltitudeMinima, na categoria passageiros</td><td>UC06, UC07</td></tr><tr><td>Carga só entre 00:00 e 06:00, todo o trecho (3)</td><td>JanelaHoraria, na categoria carga</td><td>UC06, UC07</td></tr><tr><td>Autonomia com margem de 15%, reinicia no pouso (3, 6.3)</td><td>Aeronave.autonomiaSegura() + PlanoDeVoo.validar()</td><td>UC06</td></tr><tr><td>Percurso contínuo da origem ao destino (4.1)</td><td>PlanoDeVoo.validar()</td><td>UC06</td></tr><tr><td>Chegada = entrada + distância ÷ velocidade (4.1)</td><td>Trecho./horarioChegada (derivado)</td><td>UC03, UC06</td></tr><tr><td>Pouso obrigatório no destino final (4.2)</td><td>Último Trecho deve ter Pouso</td><td>UC06</td></tr><tr><td>Altitudes de 25.000 a 35.000, passo 1.000 (5.1)</td><td>Objeto de valor Altitude</td><td>UC03, UC04</td></tr><tr><td>Slots de 1 h alinhados à hora cheia (5.1, 5.2)</td><td>SlotHorario; Trecho.slots() e Pouso.slots()</td><td>UC04, UC05, UC06</td></tr><tr><td>Consulta de disponibilidade sem reservar (5.3)</td><td>ConsultarAltitudesLivresUseCase e ConsultarVagasLivresUseCase (readOnly); livre = livre em todos os slots do período</td><td>UC04, UC05</td></tr><tr><td>Altitude/vaga não pode ser usada por dois planos no mesmo slot (5.1, 5.2)</td><td>Unicidade em ReservaAerovia e ReservaVaga (UNIQUE no banco)</td><td>UC07</td></tr><tr><td>Aprovação tudo ou nada (5.4, 6.5)</td><td>Transação em AprovarPlanoUseCase + flush das reservas</td><td>UC07</td></tr><tr><td>Voo começa e termina no mesmo dia; permanência final pode passar da meia-noite (5.5)</td><td>PlanoDeVoo.validar(); slots da permanência cobrem o dia seguinte</td><td>UC06</td></tr><tr><td>Consulta por identificador e por situação (6.6)</td><td>ConsultarPlanoUseCase e ListarPlanosUseCase</td><td>UC08, UC09</td></tr><tr><td>Abandono só em edição, sem liberar recursos (6.7)</td><td>PlanoDeVoo.abandonar() + AbandonarPlanoUseCase</td><td>UC10</td></tr><tr><td>Cancelamento libera reservas, só se a partida for futura (6.8)</td><td>PlanoDeVoo.cancelar(agora) + remoção das reservas na mesma transação</td><td>UC11</td></tr><tr><td>Só planos em edição podem ser modificados (6.8)</td><td>PlanoDeVoo como raiz do agregado verifica a situação; edição bloqueia o plano como a aprovação</td><td>UC03, UC10</td></tr></tbody></table>
+
+<h1 class="quebra">3 Parte 2 — Arquitetura (C4) e estrutura do projeto</h1>
+<h2>3.1 Visão geral</h2>
+<p><strong>Estilo adotado:</strong> Clean Architecture / Ports and Adapters. As dependências apontam para dentro
+(<code>infrastructure → application → domain</code>); o domínio não depende de Spring nem de JPA.</p>
+<p><strong>Justificativa:</strong> as regras (percurso, autonomia, slots, ciclo de vida) são o valor do sistema e
+precisam ser verificáveis sem banco nem framework (72 testes de unidade rodam em milissegundos); a persistência e a API
+são detalhes substituíveis; novas categorias e regras entram como novas classes (Strategy) sem alterar a validação; e
+as operações que alteram vários registros (aprovar, cancelar, abandonar, editar) têm fronteira transacional explícita
+na camada de aplicação.</p>
+
+<h2>3.2 C4 nível 1 — Contexto</h2>
+<p>O Operador de Voo consulta a malha e a disponibilidade e planeja, valida, aprova, abandona e cancela planos usando
+o sistema. Não há sistemas externos integrados: malha, frota e pilotos são dados do próprio sistema.</p>
+<figure><img src="c4/nivel1-contexto.png" alt="C4 nível 1" style="max-height: 95mm">
+<figcaption>Figura 3 — C4 nível 1 (fonte: docs/c4/nivel1-contexto.puml).</figcaption></figure>
+
+<h2>3.3 C4 nível 2 — Contêineres</h2>
+<p>O escopo é só o backend; o cliente (Swagger UI, REST Client, curl ou Postman) aparece como sistema externo. Os
+contêineres são: <strong>Backend API</strong> (Java 21, Spring Boot 3.5, springdoc-openapi, Flyway), que expõe os
+casos de uso UC01 a UC11, aplica as regras do domínio, delimita as transações e aplica migrações e carga inicial; e
+<strong>Banco relacional</strong> (PostgreSQL 16 via Docker Compose, volume <code>pgdata</code>), com as restrições
+<code>UNIQUE (aerovia_id, altitude_pes, slot_inicio)</code> e <code>UNIQUE (vaga_id, slot_inicio)</code>, que garantem a
+exclusividade dos recursos. Comunicação: JSON/HTTP na porta 8080 e JDBC/JPA na 5432.</p>
+<figure><img src="c4/nivel2-containers.png" alt="C4 nível 2" style="max-height: 120mm">
+<figcaption>Figura 4 — C4 nível 2 (fonte: docs/c4/nivel2-containers.puml).</figcaption></figure>
+
+<section class="paisagem">
+<h2 style="margin-top:0">3.4 C4 nível 3 — Componentes da Backend API</h2>
+<p>A figura mostra os componentes realmente implementados, agrupados pelos pacotes do código. As setas de dependência
+vão dos controladores para os casos de uso e destes para o domínio e suas portas; os adaptadores de persistência
+implementam as portas.</p>
+<figure style="margin:4pt 0 0"><img src="c4/nivel3-componentes.png" alt="C4 nível 3" style="max-height:150mm">
+<figcaption>Figura 5 — C4 nível 3 (fonte: docs/c4/nivel3-componentes.puml).</figcaption></figure>
+</section>
+<table class=""><thead><tr><th>Pacote</th><th>Componente</th><th>Responsabilidade</th></tr></thead><tbody><tr><td>infrastructure/api</td><td>PlanoDeVooController</td><td>/planos: converte HTTP em chamadas aos casos de uso; sem regra de negócio.</td></tr><tr><td></td><td>MalhaRecursosController</td><td>/aeroportos, /aerovias, /pilotos, /aeronaves e as consultas de disponibilidade. Só leitura.</td></tr><tr><td>infrastructure/api/exception</td><td>ApiExceptionHandler</td><td>Exceções de domínio → ProblemDetail (RFC 7807) com código estável (400, 404, 409, 422).</td></tr><tr><td>application/usecases</td><td>ConsultarMalhaUseCase (UC01)</td><td>Aeroportos, aerovias, pilotos e aeronaves, com dados da categoria e regras.</td></tr><tr><td></td><td>CriarPlanoUseCase (UC02)</td><td>Resolve piloto, aeronave e aeroportos (404) e chama PlanoDeVoo.criar.</td></tr><tr><td></td><td>EditarPercursoUseCase (UC03)</td><td>Bloqueia o plano, resolve aerovia e vaga (404) e chama adicionar/alterar/removerTrecho.</td></tr><tr><td></td><td>ConsultarAltitudesLivresUseCase (UC04)</td><td>Altitudes livres em todos os slots do período; uma consulta de reservas por aerovia.</td></tr><tr><td></td><td>ConsultarVagasLivresUseCase (UC05)</td><td>Vagas livres em todos os slots do período; uma consulta de reservas por aeroporto.</td></tr><tr><td></td><td>ValidarPlanoUseCase (UC06)</td><td>Executa PlanoDeVoo.validar contra as reservas atuais, sem gravar nada.</td></tr><tr><td></td><td>AprovarPlanoUseCase (UC07)</td><td>@Transactional: bloqueia, revalida (UC06), grava reservas com flush e aprova.</td></tr><tr><td></td><td>ConsultarPlanoUseCase (UC08)</td><td>GET /planos/{id}: plano com trechos, horários e reservas.</td></tr><tr><td></td><td>ListarPlanosUseCase (UC09)</td><td>GET /planos?situacao=: resumo dos planos de uma situação, ou de todos.</td></tr><tr><td></td><td>AbandonarPlanoUseCase (UC10)</td><td>@Transactional: bloqueia, abandonar() e grava a situação.</td></tr><tr><td></td><td>CancelarPlanoUseCase (UC11)</td><td>@Transactional: cancelar(agora), remove as reservas e grava a situação.</td></tr><tr><td>domain/model (+aeronave, +reserva)</td><td>Modelo de domínio</td><td>Regras de percurso, horário, autonomia, slots, ciclo de vida e Strategy de categorias.</td></tr><tr><td>domain/repository</td><td>Portas</td><td>PlanoDeVooRepositoryPort, ReservaRepositoryPort (+ VerificadorDisponibilidade), MalhaRepositoryPort.</td></tr><tr><td>infrastructure/persistence</td><td>Adaptadores e mappers</td><td>JPA separado do domínio; UNIQUE violada → ConflitoReservaException; FOR UPDATE no plano.</td></tr><tr><td>infrastructure/config</td><td>RelogioConfig, OpenApiConfig, DadosIniciaisRunner</td><td>Clock injetável, documentação OpenAPI e carga inicial pelos próprios casos de uso.</td></tr></tbody></table>
+<h3>Dinâmica da aprovação (UC07)</h3>
+<ol class="passos">
+<li>O controlador chama <code>AprovarPlanoUseCase</code>, que abre a transação e carrega o plano com
+<code>SELECT … FOR UPDATE</code>.</li>
+<li>Executa <code>ValidarPlanoUseCase</code> («include» UC06) com a disponibilidade atual; se houver violações, responde 422
+com a lista e o plano continua EM_EDICAO.</li>
+<li>Se válido, <code>PlanoDeVoo.aprovar()</code> gera uma reserva por slot, o plano é salvo como APROVADO e as reservas são
+gravadas com <code>flush()</code>.</li>
+<li>Se uma aprovação concorrente tomou algum recurso, a restrição UNIQUE falha, o adaptador converte em
+<code>ConflitoReservaException</code> (409) e a transação inteira é desfeita: nenhuma reserva parcial permanece.</li>
+<li>Caso contrário, commit e resposta 200 com as reservas.</li>
+</ol>
+<p>Edição, cancelamento e abandono usam o mesmo bloqueio do plano. Uma edição que chega durante a aprovação espera o
+fim da transação, encontra o plano APROVADO e recebe 409, então o percurso aprovado é sempre o que gerou as
+reservas.</p>
+
+<h2>3.5 Estrutura do projeto</h2>
+<pre class="arvore">src/
+├── main/
+│   ├── java/br/pucrs/projarc/gestaoplanosvoo/
+│   │   ├── domain/                     # Java puro, sem Spring nem JPA
+│   │   │   ├── model/                  # PlanoDeVoo, Trecho, Pouso, Aerovia, Aeroporto, Vaga,
+│   │   │   │   │                       # Piloto, SituacaoPlano, Altitude, SlotHorario,
+│   │   │   │   │                       # ResultadoValidacao, Violacao, CodigoViolacao
+│   │   │   │   ├── aeronave/           # Aeronave + subclasses, RegraOperacao (Strategy) e
+│   │   │   │   │                       # AltitudesPermitidas, AltitudeMinima, JanelaHoraria
+│   │   │   │   └── reserva/            # Reserva, ReservaAerovia, ReservaVaga
+│   │   │   ├── repository/             # Portas: PlanoDeVooRepositoryPort, ReservaRepositoryPort,
+│   │   │   │                           # MalhaRepositoryPort, VerificadorDisponibilidade
+│   │   │   └── exception/              # Exceções de domínio (sem HTTP)
+│   │   ├── application/
+│   │   │   ├── dto/{request,response}/ # Contratos da API
+│   │   │   └── usecases/               # um por caso de uso: ConsultarMalha, CriarPlano,
+│   │   │                               # EditarPercurso, ConsultarAltitudesLivres,
+│   │   │                               # ConsultarVagasLivres, ValidarPlano, AprovarPlano,
+│   │   │                               # ConsultarPlano, ListarPlanos, AbandonarPlano, CancelarPlano
+│   │   └── infrastructure/
+│   │       ├── api/                    # PlanoDeVooController, MalhaRecursosController
+│   │       │                           # + exception/ApiExceptionHandler
+│   │       ├── persistence/            # entities/, repositories/, adapters/, mappers/
+│   │       └── config/                 # RelogioConfig, OpenApiConfig, DadosIniciaisRunner
+│   └── resources/
+│       ├── application.yml
+│       └── db/migration/               # V1__schema, V2__malha_inicial, V3__frota_pilotos
+└── test/                               # 72 testes de unidade (domain, application)
+                                        # + 24 de integração (Testcontainers)</pre>
+<p><code>domain/</code> contém as regras puras e as portas de saída; <code>application/</code> orquestra os fluxos e define as
+transações sem acessar o banco diretamente; <code>infrastructure/</code> contém os adaptadores de entrada (REST) e saída
+(JPA/PostgreSQL), a configuração e a carga inicial.</p>
+
+<h2>3.6 Persistência e dados iniciais</h2>
+<p>PostgreSQL 16, esquema e dados versionados pelo Flyway (<code>ddl-auto: none</code>). <code>V1</code> cria as tabelas e
+restrições (incluindo os UNIQUE das reservas e CHECKs de altitude e slot em hora cheia); <code>V2</code> carrega a malha do
+enunciado (POA 41, FLN 16, CWB 26 e GRU 115 vagas; aerovias R1 a R8); <code>V3</code> carrega 4 pilotos e 6 aeronaves (duas
+por categoria). Na primeira execução, o <code>DadosIniciaisRunner</code> cria os planos iniciais pelos casos de uso, de modo
+que as reservas são sempre consequência de planos aprovados. <strong>Data de referência: 2026-12-01</strong>; nesse dia
+7 das 8 aerovias têm alguma ocupação (mínimo exigido: 5) e a R6 fica livre. Os dados persistem entre reinicializações
+(volume <code>pgdata</code>).</p>
+<table class=""><thead><tr><th>Plano</th><th>Situação</th><th>Resumo</th></tr></thead><tbody><tr><td>1</td><td>APROVADO</td><td>PR-AZA POA→GRU por R2 a 30.000 pés, 08:10→09:12, pouso GRU vaga 1</td></tr><tr><td>2</td><td>APROVADO</td><td>PP-JAT POA→FLN (sobrevoo)→CWB por R1/R4 a 26.000, 14:00→15:02, pouso CWB vaga 1</td></tr><tr><td>3</td><td>APROVADO</td><td>PR-CGA (carga) GRU→CWB→FLN por R7/R5 a 32.000, 01:00→02:17</td></tr><tr><td>4</td><td>APROVADO</td><td>PR-GOB FLN→POA por R8 a 29.000, 10:30→10:57</td></tr><tr><td>5</td><td>APROVADO</td><td>PR-AZA GRU→POA por R3 a 30.000, 18:00→19:02</td></tr><tr><td>6</td><td>APROVADO em 2026-09-01</td><td>Voo já executado: não pode ser cancelado</td></tr><tr><td>7</td><td>EM_EDICAO</td><td>PP-LEN POA→FLN→CWB em sobrevoo: 608 km > 595 km (autonomia)</td></tr><tr><td>8</td><td>ABANDONADO</td><td>PP-JAT POA→FLN por R1 a 27.000, 20:00; nunca teve reservas</td></tr><tr><td>9</td><td>CANCELADO</td><td>PR-AZA CWB→GRU por R6 a 31.000, 12:00→12:26; aprovado e cancelado, reservas liberadas</td></tr></tbody></table>
+
+<h2>3.7 Decisões de implementação</h2>
+<p>Resumo das decisões I1–I22 (alternativas e justificativas completas em <code>docs/decisoes.md</code>), que complementam
+D1–D7:</p>
+<table class=""><thead><tr><th>#</th><th>Decisão</th></tr></thead><tbody><tr><td>I1</td><td>Sem casos de uso de cadastro: malha, pilotos e frota entram por script Flyway; a consulta fica na API (UC01)</td></tr><tr><td>I2</td><td>Duração arredondada para cima ao minuto inteiro (BigDecimal)</td></tr><tr><td>I3</td><td>Intervalos semiabertos [início, fim) para slots</td></tr><tr><td>I4</td><td>Edição progressiva: POST no fim; PUT e DELETE por ordem, com renumeração</td></tr><tr><td>I5</td><td>Planos iniciais criados pelos próprios casos de uso (DadosIniciaisRunner)</td></tr><tr><td>I6</td><td>Exclusividade garantida por UNIQUE no banco + flush() na aprovação</td></tr><tr><td>I7</td><td>Lock pessimista do plano em toda operação que o altera (edição, aprovação, cancelamento e abandono); @Version como segunda barreira</td></tr><tr><td>I8</td><td>Entidades JPA separadas das entidades de domínio</td></tr><tr><td>I9</td><td>Regras de operação declaradas pela subclasse da aeronave (Strategy)</td></tr><tr><td>I10</td><td>Validação acumulativa; aprovação revalida com a disponibilidade do momento</td></tr><tr><td>I11</td><td>Vaga procurada no aeroporto de destino da aerovia do trecho</td></tr><tr><td>I12</td><td>Clock injetável, com opção de relógio fixo</td></tr><tr><td>I13</td><td>Data de referência 2026-12-01</td></tr><tr><td>I14</td><td>Hierarquia de aeronaves em tabela única</td></tr><tr><td>I15</td><td>Esquema controlado só pelo Flyway (ddl-auto: none)</td></tr><tr><td>I16</td><td>Erros em RFC 7807 (ProblemDetail) com código estável</td></tr><tr><td>I17</td><td>Spring Boot 3.5 / Java 21</td></tr><tr><td>I18</td><td>Disponibilidade: livre em todos os slots do período, com uma consulta de reservas por recurso</td></tr><tr><td>I19</td><td>Listagem de planos devolve um resumo; o detalhe fica em GET /planos/{id}</td></tr><tr><td>I20</td><td>Abandono como transição de estado (POST /abandono), com o mesmo bloqueio do cancelamento</td></tr><tr><td>I21</td><td>Carga inicial inclui um plano abandonado e um cancelado</td></tr><tr><td>I22</td><td>A aprovação não exige partida futura; só o cancelamento depende do relógio</td></tr></tbody></table>
+
+<h2>3.8 Qualidade e verificação</h2>
+<p><strong>72 testes de unidade</strong> (sem Spring nem banco) cobrem tempo e chegada, slots (incluindo os exemplos
+do enunciado), altitude, regras por categoria (inclusive carga terminando às 06:00 e cruzando a meia-noite), autonomia
+(inclusive exatamente no limite de 85%), percurso, pousos, disponibilidade, ciclo de vida e as consultas de altitudes
+e vagas livres.</p>
+<p><strong>24 testes de integração</strong> com PostgreSQL real (Testcontainers) cobrem: validar não cria reservas;
+aprovação com violação não grava nada; duas aprovações concorrentes do mesmo slot resultam em uma aprovada e um 409 sem
+reserva parcial; uma edição concorrente com a aprovação espera o bloqueio e recebe 409 sem alterar o percurso
+aprovado; cancelar plano futuro libera as reservas; cancelar plano passado responde 409; editar plano aprovado
+responde 409; abandono e listagem pelas quatro situações; altitudes e vagas livres contra a carga inicial; consultas da
+malha e da frota; e os erros 400, 404 e 422 da API. A API é documentada em OpenAPI (<code>/swagger-ui.html</code>) e o
+roteiro de demonstração está em <code>docs/demo.http</code>.</p>
+
+<h2>3.9 Evolução prevista</h2>
+<p>Novas categorias de aeronave exigem uma subclasse de domínio, uma entidade e um ramo no <code>MalhaMapper</code> (e, para
+exibir os campos próprios na API, um ramo em <code>AeronaveDetalheResponse</code>); novas regras, uma classe que implementa
+<code>RegraOperacao</code>; novos aeroportos e aerovias, uma nova migração Flyway, sem alterar código. Se o cadastro pela API
+vier a ser exigido, ele entra como novos casos de uso em <code>application/usecases</code>, usando as mesmas portas, sem
+oferecer alteração nem exclusão de aerovias.</p>
+
+<h1>Apêndice — Código PlantUML</h1>
+<h2>Modelo de domínio</h2>
+<pre>@startuml
+skinparam classAttributeIconSize 0
+hide empty members
+interface RegraOperacao {
+  +permite(alt : Altitude, ini : LocalDateTime, fim : LocalDateTime) : boolean
+}
+abstract class Aeronave {
+  prefixo : String
+  velocidadeCruzeiroKmh : double
+  autonomiaKm : double
+  +autonomiaSegura() : double
+  +podeOperar(alt : Altitude, ini : LocalDateTime, fim : LocalDateTime) : boolean
+}
+note top of Aeronave : prefixo é único
+class AeronaveParticular {
+  empresaManutencao : String
+}
+class AeronavePassageiros {
+  companhiaAerea : String
+  capacidadePassageiros : int
+}
+class AeronaveCarga {
+  companhiaAerea : String
+  capacidadeToneladas : double
+}
+Aeronave &lt;|-- AeronaveParticular
+Aeronave &lt;|-- AeronavePassageiros
+Aeronave &lt;|-- AeronaveCarga
+Aeronave &quot;*&quot; --&gt; &quot;1..*&quot; RegraOperacao : regras
+class Piloto {
+  id : Long
+  nome : String
+}
+enum SituacaoPlano {
+  EM_EDICAO
+  APROVADO
+  CANCELADO
+  ABANDONADO
+}
+class PlanoDeVoo {
+  id : Long
+  dataHoraPartida : LocalDateTime
+  situacao : SituacaoPlano
+  origem : Aeroporto
+  destino : Aeroporto
+  +validar() : ResultadoValidacao
+  +aprovar()
+  +cancelar()
+  +abandonar()
+}
+PlanoDeVoo &quot;*&quot; --&gt; &quot;1&quot; Piloto
+PlanoDeVoo &quot;*&quot; --&gt; &quot;1&quot; Aeronave : aeronave
+PlanoDeVoo ..&gt; SituacaoPlano
+class Trecho {
+  ordem : int
+  altitude : Altitude
+  horarioEntrada : LocalDateTime
+  /horarioChegada : LocalDateTime
+  +slots() : List&lt;SlotHorario&gt;
+}
+note right of Trecho : /horarioChegada é\ncalculado pelo sistema
+class Pouso {
+  permanenciaMin : int
+  +slots() : List&lt;SlotHorario&gt;
+}
+PlanoDeVoo &quot;1&quot; *-- &quot;1..*&quot; Trecho : percurso [ordenado]
+Trecho &quot;1&quot; *-- &quot;0..1&quot; Pouso
+note right of Pouso : ausente = sobrevoo
+class Aerovia {
+  id : String
+  distanciaKm : double
+  +duracao(velKmh : double) : Duration
+}
+note top of Aerovia : id é único; imutável
+class Aeroporto {
+  codigo : String
+  nome : String
+}
+note top of Aeroporto : codigo é único
+class Vaga {
+  numero : int
+}
+Trecho &quot;*&quot; --&gt; &quot;1&quot; Aerovia
+Aerovia &quot;*&quot; --&gt; &quot;1&quot; Aeroporto : origem
+Aerovia &quot;*&quot; --&gt; &quot;1&quot; Aeroporto : destino
+Aeroporto &quot;1&quot; *-- &quot;1..*&quot; Vaga
+Pouso &quot;*&quot; --&gt; &quot;1&quot; Vaga : vaga pretendida
+abstract class Reserva {
+  slot : SlotHorario
+}
+class ReservaAerovia {
+  aerovia : Aerovia
+  altitude : Altitude
+}
+class ReservaVaga {
+  vaga : Vaga
+}
+Reserva &lt;|-- ReservaAerovia
+Reserva &lt;|-- ReservaVaga
+PlanoDeVoo &quot;1&quot; --&gt; &quot;0..*&quot; Reserva : reservas
+note bottom of ReservaAerovia : único (aerovia, altitude, slot)
+note bottom of ReservaVaga : único (vaga, slot)
+@enduml</pre>
+<h2>Casos de uso</h2>
+<pre>@startuml
+left to right direction
+actor &quot;Operador de Voo&quot; as Operador
+rectangle &quot;Sistema de Gestão de Planos de Voo&quot; {
+  usecase &quot;UC01 Consultar malha e recursos&quot; as UC01
+  usecase &quot;UC02 Criar plano&quot; as UC02
+  usecase &quot;UC03 Editar percurso&quot; as UC03
+  usecase &quot;UC04 Ver altitudes livres&quot; as UC04
+  usecase &quot;UC05 Ver vagas livres&quot; as UC05
+  usecase &quot;UC06 Validar plano&quot; as UC06
+  usecase &quot;UC07 Aprovar plano&quot; as UC07
+  usecase &quot;UC08 Consultar plano&quot; as UC08
+  usecase &quot;UC09 Listar por situação&quot; as UC09
+  usecase &quot;UC10 Abandonar plano&quot; as UC10
+  usecase &quot;UC11 Cancelar plano&quot; as UC11
+}
+Operador --&gt; UC01
+Operador --&gt; UC02
+Operador --&gt; UC03
+Operador --&gt; UC04
+Operador --&gt; UC05
+Operador --&gt; UC06
+Operador --&gt; UC07
+Operador --&gt; UC08
+Operador --&gt; UC09
+Operador --&gt; UC10
+Operador --&gt; UC11
+UC07 .&gt; UC06 : &lt;&lt;include&gt;&gt;
+@enduml</pre>
+<h2>C4 nível 1</h2>
+<pre>@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+UpdateElementStyle(&quot;person&quot;, $bgColor=&quot;#4A148C&quot;, $fontColor=&quot;#ffffff&quot;, $borderColor=&quot;#311B92&quot;)
+UpdateElementStyle(&quot;system&quot;, $bgColor=&quot;#7B1FA2&quot;, $fontColor=&quot;#ffffff&quot;, $borderColor=&quot;#4A148C&quot;)
+UpdateRelStyle($lineColor=&quot;#6A1B9A&quot;, $textColor=&quot;#4A148C&quot;)
+
+Person(operador, &quot;Operador de Voo&quot;, &quot;Responsável pelo planejamento, validação, aprovação, abandono e cancelamento de planos de voo.&quot;)
+System(sistemaVoos, &quot;Sistema de Gestão de Planos de Voo&quot;, &quot;Backend com API REST: elaboração de percursos, validação de regras de operação e reserva atômica de slots.&quot;)
+
+Rel(operador, sistemaVoos, &quot;Consulta malha e disponibilidade; elabora percurso, valida, aprova, abandona e cancela planos de voo&quot;, &quot;HTTPS / JSON&quot;)
+@enduml</pre>
+<h2>C4 nível 2</h2>
+<pre>@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+UpdateElementStyle(&quot;person&quot;, $bgColor=&quot;#4A148C&quot;, $fontColor=&quot;#ffffff&quot;, $borderColor=&quot;#311B92&quot;)
+UpdateElementStyle(&quot;external_system&quot;, $bgColor=&quot;#9E9E9E&quot;, $fontColor=&quot;#ffffff&quot;, $borderColor=&quot;#616161&quot;)
+UpdateElementStyle(&quot;container&quot;, $bgColor=&quot;#7B1FA2&quot;, $fontColor=&quot;#ffffff&quot;, $borderColor=&quot;#4A148C&quot;)
+UpdateElementStyle(&quot;containerDb&quot;, $bgColor=&quot;#311B92&quot;, $fontColor=&quot;#ffffff&quot;, $borderColor=&quot;#1A237E&quot;)
+UpdateRelStyle($lineColor=&quot;#6A1B9A&quot;, $textColor=&quot;#4A148C&quot;)
+
+Person(operador, &quot;Operador de Voo&quot;, &quot;Usuário do sistema&quot;)
+
+&#x27; Correção: o cliente fica FORA da fronteira do sistema; o escopo do trabalho é só o backend.
+System_Ext(cliente, &quot;Cliente HTTP / Swagger UI&quot;, &quot;Swagger UI servido pela API, VS Code REST Client (docs/demo.http), curl ou Postman&quot;)
+
+System_Boundary(c1, &quot;Sistema de Gestão de Planos de Voo&quot;) {
+    Container(api, &quot;Backend API&quot;, &quot;Java 21 / Spring Boot 3.5&quot;, &quot;API REST (UC01 a UC11), validação de domínio, controle transacional das reservas e documentação OpenAPI.&quot;)
+    ContainerDb(db, &quot;Banco de Dados Relacional&quot;, &quot;PostgreSQL 16 (Docker Compose)&quot;, &quot;Malha, vagas, frota, pilotos, planos, trechos e reservas por slot com restrições UNIQUE. Esquema e carga pelo Flyway.&quot;)
+}
+
+Rel(operador, cliente, &quot;Usa&quot;)
+Rel(cliente, api, &quot;Requisições REST&quot;, &quot;JSON / HTTP :8080&quot;)
+Rel(api, db, &quot;Lê e grava dados e reservas&quot;, &quot;JDBC / JPA :5432&quot;)
+@enduml</pre>
+<h2>C4 nível 3</h2>
+<pre>@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+UpdateElementStyle(&quot;component&quot;, $bgColor=&quot;#8E24AA&quot;, $fontColor=&quot;#ffffff&quot;, $borderColor=&quot;#5E35B1&quot;)
+UpdateElementStyle(&quot;containerDb&quot;, $bgColor=&quot;#311B92&quot;, $fontColor=&quot;#ffffff&quot;, $borderColor=&quot;#1A237E&quot;)
+UpdateElementStyle(&quot;external_system&quot;, $bgColor=&quot;#9E9E9E&quot;, $fontColor=&quot;#ffffff&quot;, $borderColor=&quot;#616161&quot;)
+UpdateRelStyle($lineColor=&quot;#6A1B9A&quot;, $textColor=&quot;#4A148C&quot;)
+
+System_Ext(cliente, &quot;Cliente HTTP / Swagger UI&quot;)
+
+Container_Boundary(api, &quot;Backend API (Spring Boot)&quot;) {
+    Boundary(infraApi, &quot;infrastructure/api&quot;) {
+        Component(planoCtrl, &quot;PlanoDeVooController&quot;, &quot;Spring REST Controller&quot;, &quot;POST /planos, /trechos, /validacao, /aprovacao, /abandono, /cancelamento; GET /planos, /planos/{id}&quot;)
+        Component(malhaCtrl, &quot;MalhaRecursosController&quot;, &quot;Spring REST Controller&quot;, &quot;GET /aeroportos, /aerovias, /pilotos, /aeronaves; /altitudes-livres, /vagas-livres&quot;)
+        Component(handler, &quot;ApiExceptionHandler&quot;, &quot;@RestControllerAdvice&quot;, &quot;Exceções -&gt; RFC 7807 (400, 404, 409, 422)&quot;)
+    }
+    Boundary(app, &quot;application/usecases&quot;) {
+        Component(criarUC, &quot;CriarPlanoUseCase&quot;, &quot;Application Use Case&quot;, &quot;UC02: cria plano EM_EDICAO&quot;)
+        Component(editarUC, &quot;EditarPercursoUseCase&quot;, &quot;Application Use Case&quot;, &quot;UC03: inclui, altera e remove trechos&quot;)
+        Component(validarUC, &quot;ValidarPlanoUseCase&quot;, &quot;Application Use Case&quot;, &quot;UC06: valida sem gravar&quot;)
+        Component(aprovarUC, &quot;AprovarPlanoUseCase&quot;, &quot;Application Use Case, @Transactional&quot;, &quot;UC07: revalida e reserva tudo ou nada&quot;)
+        Component(cancelarUC, &quot;CancelarPlanoUseCase&quot;, &quot;Application Use Case, @Transactional&quot;, &quot;UC11: cancela e libera reservas&quot;)
+        Component(consultarUC, &quot;ConsultarPlanoUseCase&quot;, &quot;Application Use Case&quot;, &quot;UC08: plano com trechos e reservas&quot;)
+        Component(listarUC, &quot;ListarPlanosUseCase&quot;, &quot;Application Use Case&quot;, &quot;UC09: planos por situação&quot;)
+        Component(abandonarUC, &quot;AbandonarPlanoUseCase&quot;, &quot;Application Use Case, @Transactional&quot;, &quot;UC10: plano em edição -&gt; ABANDONADO&quot;)
+        Component(malhaUC, &quot;ConsultarMalhaUseCase&quot;, &quot;Application Use Case&quot;, &quot;UC01: malha, pilotos e frota&quot;)
+        Component(altitudesUC, &quot;ConsultarAltitudesLivresUseCase&quot;, &quot;Application Use Case&quot;, &quot;UC04: altitudes livres no período&quot;)
+        Component(vagasUC, &quot;ConsultarVagasLivresUseCase&quot;, &quot;Application Use Case&quot;, &quot;UC05: vagas livres no período&quot;)
+    }
+    Boundary(dom, &quot;domain&quot;) {
+        Component(dominio, &quot;Modelo de Domínio&quot;, &quot;model/, model/aeronave/, model/reserva/&quot;, &quot;PlanoDeVoo (raiz), Trecho, Pouso, Aerovia, Aeroporto, Vaga, Altitude, SlotHorario, Aeronave + RegraOperacao (Strategy), Reserva&quot;)
+        Component(planoPort, &quot;PlanoDeVooRepositoryPort&quot;, &quot;Porta (interface)&quot;, &quot;Persistência do agregado&quot;)
+        Component(reservaPort, &quot;ReservaRepositoryPort&quot;, &quot;Porta (interface)&quot;, &quot;Reservas e VerificadorDisponibilidade&quot;)
+        Component(malhaPort, &quot;MalhaRepositoryPort&quot;, &quot;Porta (interface)&quot;, &quot;Aeroportos, aerovias, pilotos e frota&quot;)
+    }
+    Boundary(infraPers, &quot;infrastructure/persistence&quot;) {
+        Component(planoAd, &quot;PlanoDeVooRepositoryAdapter&quot;, &quot;Adapter + PlanoMapper&quot;, &quot;Entidades JPA &lt;-&gt; agregado; SELECT ... FOR UPDATE&quot;)
+        Component(reservaAd, &quot;ReservaRepositoryAdapter&quot;, &quot;Adapter&quot;, &quot;INSERT + flush; UNIQUE violada -&gt; ConflitoReservaException&quot;)
+        Component(malhaAd, &quot;MalhaRepositoryAdapter&quot;, &quot;Adapter + MalhaMapper&quot;, &quot;Leitura da malha e da frota&quot;)
+    }
+    Boundary(infraCfg, &quot;infrastructure/config&quot;) {
+        Component(clock, &quot;RelogioConfig&quot;, &quot;@Configuration&quot;, &quot;java.time.Clock injetável (app.relogio-fixo)&quot;)
+        Component(runner, &quot;DadosIniciaisRunner&quot;, &quot;ApplicationRunner&quot;, &quot;Cria e aprova os planos iniciais pelos casos de uso&quot;)
+    }
+}
+
+ContainerDb(db, &quot;Banco de Dados&quot;, &quot;PostgreSQL 16&quot;)
+
+Rel(cliente, planoCtrl, &quot;JSON / HTTP&quot;)
+Rel(planoCtrl, criarUC, &quot;Invoca&quot;)
+Rel(planoCtrl, editarUC, &quot;Invoca&quot;)
+Rel(planoCtrl, validarUC, &quot;Invoca&quot;)
+Rel(planoCtrl, aprovarUC, &quot;Invoca&quot;)
+Rel(planoCtrl, cancelarUC, &quot;Invoca&quot;)
+Rel(planoCtrl, consultarUC, &quot;Invoca&quot;)
+Rel(planoCtrl, listarUC, &quot;Invoca&quot;)
+Rel(planoCtrl, abandonarUC, &quot;Invoca&quot;)
+Rel(cliente, malhaCtrl, &quot;JSON / HTTP&quot;)
+Rel(malhaCtrl, malhaUC, &quot;Invoca&quot;)
+Rel(malhaCtrl, altitudesUC, &quot;Invoca&quot;)
+Rel(malhaCtrl, vagasUC, &quot;Invoca&quot;)
+
+Rel(aprovarUC, validarUC, &quot;«include» UC06&quot;)
+Rel(criarUC, dominio, &quot;PlanoDeVoo.criar&quot;)
+Rel(editarUC, dominio, &quot;adicionar/alterar/removerTrecho&quot;)
+Rel(validarUC, dominio, &quot;PlanoDeVoo.validar&quot;)
+Rel(aprovarUC, dominio, &quot;PlanoDeVoo.aprovar -&gt; reservas&quot;)
+Rel(cancelarUC, dominio, &quot;PlanoDeVoo.cancelar&quot;)
+Rel(cancelarUC, clock, &quot;agora&quot;)
+Rel(abandonarUC, dominio, &quot;PlanoDeVoo.abandonar&quot;)
+
+Rel(criarUC, malhaPort, &quot;Usa&quot;)
+Rel(editarUC, malhaPort, &quot;Usa&quot;)
+Rel(criarUC, planoPort, &quot;Usa&quot;)
+Rel(editarUC, planoPort, &quot;Bloqueia e salva&quot;)
+Rel(validarUC, reservaPort, &quot;Consulta ocupação&quot;)
+Rel(aprovarUC, planoPort, &quot;Bloqueia e salva&quot;)
+Rel(aprovarUC, reservaPort, &quot;Grava reservas&quot;)
+Rel(cancelarUC, reservaPort, &quot;Remove reservas&quot;)
+Rel(consultarUC, planoPort, &quot;Usa&quot;)
+Rel(listarUC, planoPort, &quot;Usa&quot;)
+Rel(abandonarUC, planoPort, &quot;Bloqueia e salva&quot;)
+Rel(malhaUC, malhaPort, &quot;Usa&quot;)
+Rel(altitudesUC, malhaPort, &quot;Usa&quot;)
+Rel(altitudesUC, reservaPort, &quot;Reservas do período&quot;)
+Rel(vagasUC, malhaPort, &quot;Usa&quot;)
+Rel(vagasUC, reservaPort, &quot;Reservas do período&quot;)
+Rel(runner, criarUC, &quot;Invoca&quot;)
+Rel(runner, editarUC, &quot;Invoca&quot;)
+Rel(runner, aprovarUC, &quot;Invoca&quot;)
+Rel(runner, abandonarUC, &quot;Invoca&quot;)
+Rel(runner, cancelarUC, &quot;Invoca&quot;)
+
+Rel_U(planoAd, planoPort, &quot;Implementa&quot;)
+Rel_U(reservaAd, reservaPort, &quot;Implementa&quot;)
+Rel_U(malhaAd, malhaPort, &quot;Implementa&quot;)
+Rel(planoAd, db, &quot;SQL / JPA&quot;)
+Rel(reservaAd, db, &quot;SQL / JPA&quot;)
+Rel(malhaAd, db, &quot;SQL / JPA&quot;)
+@enduml</pre>
+
+</body>
+</html>
