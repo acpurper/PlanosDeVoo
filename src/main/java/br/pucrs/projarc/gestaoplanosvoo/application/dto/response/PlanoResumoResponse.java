@@ -11,11 +11,11 @@ public record PlanoResumoResponse(Long id, String situacao, Long pilotoId, Strin
                                   @JsonInclude(JsonInclude.Include.NON_NULL) LocalDateTime chegadaPrevista,
                                   int quantidadeTrechos, int quantidadeReservas) {
 
-    public static PlanoResumoResponse de(PlanoDeVoo p) {
+    public static PlanoResumoResponse de(PlanoDeVoo p, int quantidadeReservas) {
         LocalDateTime chegada = p.getTrechos().isEmpty() ? null
                 : p.getTrechos().getLast().horarioChegada(p.getAeronave().getVelocidadeCruzeiroKmh());
         return new PlanoResumoResponse(p.getId(), p.getSituacao().name(), p.getPiloto().getId(),
                 p.getAeronave().getPrefixo(), p.getOrigem().getCodigo(), p.getDestino().getCodigo(),
-                p.getDataHoraPartida(), chegada, p.getTrechos().size(), p.getReservas().size());
+                p.getDataHoraPartida(), chegada, p.getTrechos().size(), quantidadeReservas);
     }
 }

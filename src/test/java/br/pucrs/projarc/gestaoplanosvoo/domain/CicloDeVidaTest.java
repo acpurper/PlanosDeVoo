@@ -7,12 +7,7 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.exception.SituacaoInvalidaExcepti
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.PlanoDeVoo;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.Pouso;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.SituacaoPlano;
-import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.Reserva;
-import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.ReservaAerovia;
-import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.ReservaVaga;
 import org.junit.jupiter.api.Test;
-
-import java.util.List;
 
 import static br.pucrs.projarc.gestaoplanosvoo.domain.Malha.*;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,22 +35,18 @@ class CicloDeVidaTest {
     }
 
     @Test
-    void aprovarGeraUmaReservaPorSlotDeTrechoEDePouso() {
+    void aprovarPassaParaAprovado() {
         PlanoDeVoo plano = planoValido();
-        List<Reserva> reservas = plano.aprovar(TUDO_LIVRE);
-        // trecho 08:10 -> 09:12 = slots 08h e 09h; vaga 09:12 -> 10:12 = slots 09h e 10h
-        assertThat(reservas).filteredOn(r -> r instanceof ReservaAerovia).hasSize(2);
-        assertThat(reservas).filteredOn(r -> r instanceof ReservaVaga).hasSize(2);
+        plano.aprovar(TUDO_LIVRE);
         assertThat(plano.getSituacao()).isEqualTo(SituacaoPlano.APROVADO);
     }
 
     @Test
-    void aprovacaoInvalidaMantemEmEdicaoESemReservas() {
+    void aprovacaoInvalidaMantemEmEdicao() {
         PlanoDeVoo plano = planoValido();
         Ocupacao ocupada = new Ocupacao().ocuparAltitude(R2, 30_000, as(9, 0));
         assertThatThrownBy(() -> plano.aprovar(ocupada)).isInstanceOf(PlanoInvalidoException.class);
         assertThat(plano.getSituacao()).isEqualTo(SituacaoPlano.EM_EDICAO);
-        assertThat(plano.getReservas()).isEmpty();
     }
 
     @Test
@@ -70,12 +61,11 @@ class CicloDeVidaTest {
     }
 
     @Test
-    void cancelarPlanoAprovadoFuturoLiberaReservas() {
+    void cancelarPlanoAprovadoFuturo() {
         PlanoDeVoo plano = planoValido();
         plano.aprovar(TUDO_LIVRE);
         plano.cancelar(as(7, 0));
         assertThat(plano.getSituacao()).isEqualTo(SituacaoPlano.CANCELADO);
-        assertThat(plano.getReservas()).isEmpty();
         assertThat(plano.getTrechos()).as("os dados do plano são preservados").hasSize(1);
     }
 

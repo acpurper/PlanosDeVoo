@@ -3,7 +3,6 @@ package br.pucrs.projarc.gestaoplanosvoo.infrastructure.persistence.adapters;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.PlanoDeVoo;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.SituacaoPlano;
 import br.pucrs.projarc.gestaoplanosvoo.domain.repository.PlanoDeVooRepositoryPort;
-import br.pucrs.projarc.gestaoplanosvoo.domain.repository.ReservaRepositoryPort;
 import br.pucrs.projarc.gestaoplanosvoo.infrastructure.persistence.entities.PlanoVooEntity;
 import br.pucrs.projarc.gestaoplanosvoo.infrastructure.persistence.mappers.PlanoMapper;
 import br.pucrs.projarc.gestaoplanosvoo.infrastructure.persistence.repositories.PlanoVooJpaRepository;
@@ -16,12 +15,10 @@ import java.util.Optional;
 public class PlanoDeVooRepositoryAdapter implements PlanoDeVooRepositoryPort {
 
     private final PlanoVooJpaRepository planos;
-    private final ReservaRepositoryPort reservas;
     private final PlanoMapper mapper;
 
-    public PlanoDeVooRepositoryAdapter(PlanoVooJpaRepository planos, ReservaRepositoryPort reservas, PlanoMapper mapper) {
+    public PlanoDeVooRepositoryAdapter(PlanoVooJpaRepository planos, PlanoMapper mapper) {
         this.planos = planos;
-        this.reservas = reservas;
         this.mapper = mapper;
     }
 
@@ -32,17 +29,17 @@ public class PlanoDeVooRepositoryAdapter implements PlanoDeVooRepositoryPort {
                 : planos.findById(plano.getId()).orElseThrow();
         mapper.copiar(plano, entidade);
         PlanoVooEntity salva = planos.saveAndFlush(entidade);
-        return mapper.paraDominio(salva, plano.getReservas());
+        return mapper.paraDominio(salva);
     }
 
     @Override
     public Optional<PlanoDeVoo> buscarPorId(Long id) {
-        return planos.findById(id).map(e -> mapper.paraDominio(e, reservas.listarDoPlano(id)));
+        return planos.findById(id).map(e -> mapper.paraDominio(e));
     }
 
     @Override
     public Optional<PlanoDeVoo> buscarPorIdParaAtualizacao(Long id) {
-        return planos.buscarComBloqueio(id).map(e -> mapper.paraDominio(e, reservas.listarDoPlano(id)));
+        return planos.buscarComBloqueio(id).map(e -> mapper.paraDominio(e));
     }
 
     @Override
@@ -56,7 +53,7 @@ public class PlanoDeVooRepositoryAdapter implements PlanoDeVooRepositoryPort {
     }
 
     private PlanoDeVoo paraDominio(PlanoVooEntity e) {
-        return mapper.paraDominio(e, reservas.listarDoPlano(e.getId()));
+        return mapper.paraDominio(e);
     }
 
     @Override

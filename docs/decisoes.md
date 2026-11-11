@@ -30,6 +30,7 @@ Cada uma traz a escolha feita, a alternativa considerada e o motivo.
 | I20 | Abandono pela mesma via de bloqueio do cancelamento | `AbandonarPlanoUseCase` |
 | I21 | Carga inicial inclui um plano abandonado e um cancelado | `DadosIniciaisRunner` |
 | I22 | A aprovação não exige partida futura | `PlanoDeVoo.aprovar` |
+| I23 | Reservas separadas do plano num serviço de domínio injetado | `ReservaService`, `ServicosDominioConfig`, `AprovarPlanoUseCase` |
 
 ---
 
@@ -195,7 +196,7 @@ violação tem `codigo`, `trecho` e `mensagem`. O UC06 sempre responde 200 com e
 mesma validação (via `ValidarPlanoUseCase`, «include») com a disponibilidade do momento e responde 422 com
 a lista se houver violação. Além disso, `PlanoDeVoo.aprovar` revalida internamente antes de gerar as
 reservas, de modo que o agregado nunca aceita ser aprovado em estado inválido, qualquer que seja quem o
-chame.
+chame. Gerar e gravar as reservas é papel do `ReservaService` (I23).
 
 **Alternativa.** Lançar exceção na primeira falha. Isso obrigaria o usuário a corrigir uma
 inconsistência por vez.
@@ -339,3 +340,24 @@ nunca mais pode ser cancelado. É assim que a carga inicial cria o plano 6, que 
 de uso e acrescentaria uma regra que o enunciado não pede. Se o professor a pedir, basta uma verificação
 em `PlanoDeVoo.validar`, que já recebe as dependências por parâmetro, mais o `Clock`.
 
+## I23. Reservas separadas do plano (`ReservaService`)
+
+**Decisão.** Cada parte mexe só no que é seu:
+
+| Quem | Mexe em | Não mexe em |
+|---|---|---|
+| `PlanoDeVoo` (agregado) | Percurso, validação e situação (`aprovar`, `cancelar`, `abandonar`) | Reservas: não as gera, não as guarda e não as apaga |
+| `ReservaService` (serviço de domínio) | Reservas: consulta a ocupação, gera uma reserva por slot de um plano aprovado, grava e libera | Situação do plano |
+| `ReservaRepositoryPort` | Persistência das reservas | Só é usada pelos casos de uso de plano por meio do `ReservaService` |
+
+O `ReservaService` é Java puro (I8) e implementa `VerificadorDisponibilidade`, então é ele que o plano
+recebe em `validar`/`aprovar` para consultar a ocupação. O bean é criado em `ServicosDominioConfig` e
+**injetado pelo construtor** nos casos de uso. No UC07 o `AprovarPlanoUseCase` recebe o `ReservaService`
+(e não mais a porta de reservas): `plano.aprovar(reservaService)` muda a situação e, em seguida,
+`reservaService.reservar(plano)` gera e grava as reservas na mesma transação. O UC11 faz o inverso:
+`plano.cancelar(agora)` e `reservaService.liberar(id)`. As respostas montam as reservas com
+`reservaService.doPlano(id)`, e o adaptador de planos deixou de depender da porta de reservas.
+
+**Alternativa.** Manter a geração das reservas dentro de `PlanoDeVoo.aprovar`, como antes. O agregado
+acumulava duas responsabilidades (ciclo de vida e ocupação de recursos), e o caso de uso precisava manusear
+a porta de reservas diretamente.

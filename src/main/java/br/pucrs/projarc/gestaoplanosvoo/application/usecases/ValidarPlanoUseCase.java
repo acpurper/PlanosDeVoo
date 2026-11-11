@@ -5,7 +5,7 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.exception.RecursoNaoEncontradoExc
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.PlanoDeVoo;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.ResultadoValidacao;
 import br.pucrs.projarc.gestaoplanosvoo.domain.repository.PlanoDeVooRepositoryPort;
-import br.pucrs.projarc.gestaoplanosvoo.domain.repository.ReservaRepositoryPort;
+import br.pucrs.projarc.gestaoplanosvoo.domain.service.ReservaService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,11 +13,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class ValidarPlanoUseCase {
 
     private final PlanoDeVooRepositoryPort planos;
-    private final ReservaRepositoryPort reservas;
+    private final ReservaService reservaService;
 
-    public ValidarPlanoUseCase(PlanoDeVooRepositoryPort planos, ReservaRepositoryPort reservas) {
+    public ValidarPlanoUseCase(PlanoDeVooRepositoryPort planos, ReservaService reservaService) {
         this.planos = planos;
-        this.reservas = reservas;
+        this.reservaService = reservaService;
     }
 
     @Transactional(readOnly = true)
@@ -28,6 +28,6 @@ public class ValidarPlanoUseCase {
     }
 
     ResultadoValidacao validar(PlanoDeVoo plano) {
-        return plano.validar(reservas);
+        return plano.validar(reservaService);
     }
 }

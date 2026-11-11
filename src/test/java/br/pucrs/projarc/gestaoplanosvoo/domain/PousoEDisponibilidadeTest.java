@@ -90,7 +90,6 @@ class PousoEDisponibilidadeTest {
         });
         assertThatThrownBy(() -> plano.aprovar(TUDO_LIVRE)).isInstanceOf(PlanoInvalidoException.class);
         assertThat(plano.getSituacao()).isEqualTo(SituacaoPlano.EM_EDICAO);
-        assertThat(plano.getReservas()).isEmpty();
     }
 
     @Test

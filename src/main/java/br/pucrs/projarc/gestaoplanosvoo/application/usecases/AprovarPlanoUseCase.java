@@ -5,25 +5,22 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.exception.PlanoInvalidoException;
 import br.pucrs.projarc.gestaoplanosvoo.domain.exception.RecursoNaoEncontradoException;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.PlanoDeVoo;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.ResultadoValidacao;
-import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.Reserva;
 import br.pucrs.projarc.gestaoplanosvoo.domain.repository.PlanoDeVooRepositoryPort;
-import br.pucrs.projarc.gestaoplanosvoo.domain.repository.ReservaRepositoryPort;
+import br.pucrs.projarc.gestaoplanosvoo.domain.service.ReservaService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 public class AprovarPlanoUseCase {
 
     private final PlanoDeVooRepositoryPort planos;
-    private final ReservaRepositoryPort reservas;
+    private final ReservaService reservaService;
     private final ValidarPlanoUseCase validarPlano;
 
-    public AprovarPlanoUseCase(PlanoDeVooRepositoryPort planos, ReservaRepositoryPort reservas,
+    public AprovarPlanoUseCase(PlanoDeVooRepositoryPort planos, ReservaService reservaService,
                                ValidarPlanoUseCase validarPlano) {
         this.planos = planos;
-        this.reservas = reservas;
+        this.reservaService = reservaService;
         this.validarPlano = validarPlano;
     }
 
@@ -37,10 +34,10 @@ public class AprovarPlanoUseCase {
             throw new PlanoInvalidoException(resultado);
         }
 
-        List<Reserva> novas = plano.aprovar(reservas);
+        plano.aprovar(reservaService);
         planos.salvar(plano);
-        reservas.salvarTodas(novas);
+        reservaService.reservar(plano);
 
-        return PlanoResponse.de(planos.buscarPorId(planoId).orElseThrow());
+        return PlanoResponse.de(planos.buscarPorId(planoId).orElseThrow(), reservaService.doPlano(planoId));
     }
 }

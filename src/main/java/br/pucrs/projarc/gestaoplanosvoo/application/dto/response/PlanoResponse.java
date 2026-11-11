@@ -4,6 +4,7 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.model.PlanoDeVoo;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.SlotHorario;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.Trecho;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.aeronave.Aeronave;
+import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.Reserva;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.time.LocalDateTime;
@@ -36,6 +37,10 @@ public record PlanoResponse(Long id, String situacao, PilotoResponse piloto, Aer
     }
 
     public static PlanoResponse de(PlanoDeVoo p) {
+        return de(p, List.of());
+    }
+
+    public static PlanoResponse de(PlanoDeVoo p, List<Reserva> reservas) {
         Aeronave a = p.getAeronave();
         double vel = a.getVelocidadeCruzeiroKmh();
         List<Double> acumuladas = p.distanciasDesdeAbastecimento();
@@ -57,7 +62,7 @@ public record PlanoResponse(Long id, String situacao, PilotoResponse piloto, Aer
                 new PilotoResponse(p.getPiloto().getId(), p.getPiloto().getNome()),
                 new AeronaveResponse(a.getPrefixo(), a.categoria(), vel, a.getAutonomiaKm(), a.autonomiaSegura()),
                 p.getOrigem().getCodigo(), p.getDestino().getCodigo(), p.getDataHoraPartida(), chegadaPrevista,
-                trechos, p.getReservas().stream().map(ReservaResponse::de).toList());
+                trechos, reservas.stream().map(ReservaResponse::de).toList());
     }
 
     private static List<LocalDateTime> inicios(List<SlotHorario> slots) {

@@ -4,7 +4,6 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.model.Altitude;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.PlanoDeVoo;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.Pouso;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.Trecho;
-import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.Reserva;
 import br.pucrs.projarc.gestaoplanosvoo.infrastructure.persistence.entities.AeronaveEntity;
 import br.pucrs.projarc.gestaoplanosvoo.infrastructure.persistence.entities.AeroportoEntity;
 import br.pucrs.projarc.gestaoplanosvoo.infrastructure.persistence.entities.AeroviaEntity;
@@ -29,7 +28,7 @@ public class PlanoMapper {
         this.em = em;
     }
 
-    public PlanoDeVoo paraDominio(PlanoVooEntity e, List<Reserva> reservas) {
+    public PlanoDeVoo paraDominio(PlanoVooEntity e) {
         List<Trecho> trechos = e.getTrechos().stream().map(this::paraDominio).toList();
         return PlanoDeVoo.reconstituir(e.getId(),
                 malha.paraDominio(e.getPiloto()),
@@ -39,7 +38,6 @@ public class PlanoMapper {
                 e.getDataHoraPartida(),
                 e.getSituacao(),
                 trechos,
-                reservas,
                 e.getVersao());
     }
 

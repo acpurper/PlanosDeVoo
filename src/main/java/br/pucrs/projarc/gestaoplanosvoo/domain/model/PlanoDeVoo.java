@@ -6,9 +6,6 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.exception.RegraDeNegocioException
 import br.pucrs.projarc.gestaoplanosvoo.domain.exception.SituacaoInvalidaException;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.aeronave.Aeronave;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.aeronave.RegraOperacao;
-import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.Reserva;
-import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.ReservaAerovia;
-import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.ReservaVaga;
 import br.pucrs.projarc.gestaoplanosvoo.domain.repository.VerificadorDisponibilidade;
 
 import java.time.LocalDateTime;
@@ -29,12 +26,11 @@ public class PlanoDeVoo {
     private final LocalDateTime dataHoraPartida;
     private SituacaoPlano situacao;
     private final List<Trecho> trechos;
-    private final List<Reserva> reservas;
     private final Long versao;
 
     private PlanoDeVoo(Long id, Piloto piloto, Aeronave aeronave, Aeroporto origem, Aeroporto destino,
                        LocalDateTime dataHoraPartida, SituacaoPlano situacao, List<Trecho> trechos,
-                       List<Reserva> reservas, Long versao) {
+                       Long versao) {
         this.id = id;
         this.piloto = Objects.requireNonNull(piloto, "piloto");
         this.aeronave = Objects.requireNonNull(aeronave, "aeronave");
@@ -43,7 +39,6 @@ public class PlanoDeVoo {
         this.dataHoraPartida = Objects.requireNonNull(dataHoraPartida, "dataHoraPartida").truncatedTo(ChronoUnit.MINUTES);
         this.situacao = Objects.requireNonNull(situacao, "situacao");
         this.trechos = new ArrayList<>(trechos);
-        this.reservas = new ArrayList<>(reservas);
         this.versao = versao;
     }
 
@@ -54,13 +49,13 @@ public class PlanoDeVoo {
                     "Origem e destino do plano não podem ser o mesmo aeroporto (" + origem + ").");
         }
         return new PlanoDeVoo(null, piloto, aeronave, origem, destino, dataHoraPartida,
-                SituacaoPlano.EM_EDICAO, List.of(), List.of(), null);
+                SituacaoPlano.EM_EDICAO, List.of(), null);
     }
 
     public static PlanoDeVoo reconstituir(Long id, Piloto piloto, Aeronave aeronave, Aeroporto origem, Aeroporto destino,
                                           LocalDateTime dataHoraPartida, SituacaoPlano situacao,
-                                          List<Trecho> trechos, List<Reserva> reservas, Long versao) {
-        return new PlanoDeVoo(id, piloto, aeronave, origem, destino, dataHoraPartida, situacao, trechos, reservas, versao);
+                                          List<Trecho> trechos, Long versao) {
+        return new PlanoDeVoo(id, piloto, aeronave, origem, destino, dataHoraPartida, situacao, trechos, versao);
     }
 
     public Trecho adicionarTrecho(Aerovia aerovia, Altitude altitude, LocalDateTime horarioEntrada, Pouso pouso) {
@@ -257,28 +252,12 @@ public class PlanoDeVoo {
         return acumuladas;
     }
 
-    public List<Reserva> aprovar(VerificadorDisponibilidade disponibilidade) {
+    public void aprovar(VerificadorDisponibilidade disponibilidade) {
         ResultadoValidacao resultado = validar(disponibilidade);
         if (!resultado.valido()) {
             throw new PlanoInvalidoException(resultado);
         }
-        double velocidade = aeronave.getVelocidadeCruzeiroKmh();
-        List<Reserva> novas = new ArrayList<>();
-        for (Trecho trecho : trechos) {
-            for (SlotHorario slot : trecho.slots(velocidade)) {
-                novas.add(new ReservaAerovia(null, id, slot, trecho.getAerovia(), trecho.getAltitude()));
-            }
-            Pouso pouso = trecho.getPouso().orElse(null);
-            if (pouso != null) {
-                for (SlotHorario slot : trecho.slotsPouso(velocidade)) {
-                    novas.add(new ReservaVaga(null, id, slot, pouso.vaga()));
-                }
-            }
-        }
-        reservas.clear();
-        reservas.addAll(novas);
         situacao = SituacaoPlano.APROVADO;
-        return List.copyOf(novas);
     }
 
     public void cancelar(LocalDateTime agora) {
@@ -291,7 +270,6 @@ public class PlanoDeVoo {
                     "A partida do plano " + id + " (" + dataHoraPartida + ") já ocorreu; o voo foi executado e não pode ser cancelado.");
         }
         situacao = SituacaoPlano.CANCELADO;
-        reservas.clear();
     }
 
     public void abandonar() {
@@ -325,6 +303,5 @@ public class PlanoDeVoo {
     public LocalDateTime getDataHoraPartida() { return dataHoraPartida; }
     public SituacaoPlano getSituacao() { return situacao; }
     public List<Trecho> getTrechos() { return List.copyOf(trechos); }
-    public List<Reserva> getReservas() { return List.copyOf(reservas); }
     public Long getVersao() { return versao; }
 }

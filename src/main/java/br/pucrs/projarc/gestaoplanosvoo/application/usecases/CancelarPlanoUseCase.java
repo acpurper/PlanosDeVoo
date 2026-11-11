@@ -4,7 +4,7 @@ import br.pucrs.projarc.gestaoplanosvoo.application.dto.response.PlanoResponse;
 import br.pucrs.projarc.gestaoplanosvoo.domain.exception.RecursoNaoEncontradoException;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.PlanoDeVoo;
 import br.pucrs.projarc.gestaoplanosvoo.domain.repository.PlanoDeVooRepositoryPort;
-import br.pucrs.projarc.gestaoplanosvoo.domain.repository.ReservaRepositoryPort;
+import br.pucrs.projarc.gestaoplanosvoo.domain.service.ReservaService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,12 +15,12 @@ import java.time.LocalDateTime;
 public class CancelarPlanoUseCase {
 
     private final PlanoDeVooRepositoryPort planos;
-    private final ReservaRepositoryPort reservas;
+    private final ReservaService reservaService;
     private final Clock clock;
 
-    public CancelarPlanoUseCase(PlanoDeVooRepositoryPort planos, ReservaRepositoryPort reservas, Clock clock) {
+    public CancelarPlanoUseCase(PlanoDeVooRepositoryPort planos, ReservaService reservaService, Clock clock) {
         this.planos = planos;
-        this.reservas = reservas;
+        this.reservaService = reservaService;
         this.clock = clock;
     }
 
@@ -29,7 +29,7 @@ public class CancelarPlanoUseCase {
         PlanoDeVoo plano = planos.buscarPorIdParaAtualizacao(planoId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Plano " + planoId + " não encontrado."));
         plano.cancelar(LocalDateTime.now(clock));
-        reservas.removerDoPlano(planoId);
-        return PlanoResponse.de(planos.salvar(plano));
+        reservaService.liberar(planoId);
+        return PlanoResponse.de(planos.salvar(plano), reservaService.doPlano(planoId));
     }
 }
