@@ -30,7 +30,7 @@ Cada uma traz a escolha feita, a alternativa considerada e o motivo.
 | I20 | Abandono pela mesma via de bloqueio do cancelamento | `AbandonarPlanoUseCase` |
 | I21 | Carga inicial inclui um plano abandonado e um cancelado | `DadosIniciaisRunner` |
 | I22 | A aprovação não exige partida futura | `PlanoDeVoo.aprovar` |
-| I23 | Reservas separadas do plano num serviço de domínio injetado | `ReservaService`, `ServicosDominioConfig`, `AprovarPlanoUseCase` |
+| I23 | Reservas separadas do plano num serviço de domínio injetado por interface | `GestaoReservas`, `ReservaService`, `ServicosDominioConfig`, `AprovarPlanoUseCase` |
 
 ---
 
@@ -193,10 +193,9 @@ categoria ou regra nova. É a alternativa já descartada em D1.
 
 **Decisão.** `PlanoDeVoo.validar` devolve um `ResultadoValidacao` com **todas** as violações. Cada
 violação tem `codigo`, `trecho` e `mensagem`. O UC06 sempre responde 200 com esse laudo. O UC07 executa a
-mesma validação (via `ValidarPlanoUseCase`, «include») com a disponibilidade do momento e responde 422 com
-a lista se houver violação. Além disso, `PlanoDeVoo.aprovar` revalida internamente antes de gerar as
-reservas, de modo que o agregado nunca aceita ser aprovado em estado inválido, qualquer que seja quem o
-chame. Gerar e gravar as reservas é papel do `ReservaService` (I23).
+mesma validação com a disponibilidade do momento, dentro de `PlanoDeVoo.aprovar`, e responde 422 com a
+lista se houver violação. Assim o agregado nunca aceita ser aprovado em estado inválido, qualquer que seja
+quem o chame, e o `AprovarPlanoUseCase` não precisa depender do `ValidarPlanoUseCase`. Gerar e gravar as reservas é papel do `ReservaService` (I23).
 
 **Alternativa.** Lançar exceção na primeira falha. Isso obrigaria o usuário a corrigir uma
 inconsistência por vez.
@@ -286,8 +285,9 @@ validação (`SlotHorario.cobrindo`, intervalos semiabertos, I3). Uma altitude o
 quando está livre em todos esses slots. A resposta também lista o que está ocupado, com o slot e o plano
 que reservou, para facilitar a demonstração de conflitos.
 
-As reservas do período são lidas com **uma consulta por recurso** (`ReservaRepositoryPort.listarDaAerovia`
-e `listarDoAeroporto`) e agrupadas em memória.
+As reservas do período são lidas com **uma consulta por recurso** (`GestaoReservas.daAerovia`
+e `doAeroporto`, que o `ReservaService` delega a `ReservaRepositoryPort.listarDaAerovia`/`listarDoAeroporto`)
+e agrupadas em memória.
 
 **Alternativa.** Reaproveitar `VerificadorDisponibilidade.altitudeOcupada` slot a slot. Daria
 11 altitudes × N slots consultas ao banco (ou 115 vagas × N em GRU). A porta nova evita isso, e a
@@ -347,16 +347,31 @@ em `PlanoDeVoo.validar`, que já recebe as dependências por parâmetro, mais o 
 | Quem | Mexe em | Não mexe em |
 |---|---|---|
 | `PlanoDeVoo` (agregado) | Percurso, validação e situação (`aprovar`, `cancelar`, `abandonar`) | Reservas: não as gera, não as guarda e não as apaga |
-| `ReservaService` (serviço de domínio) | Reservas: consulta a ocupação, gera uma reserva por slot de um plano aprovado, grava e libera | Situação do plano |
-| `ReservaRepositoryPort` | Persistência das reservas | Só é usada pelos casos de uso de plano por meio do `ReservaService` |
+| `GestaoReservas` (interface) | Contrato das reservas visto pelos casos de uso | Implementação |
+| `ReservaService` (serviço de domínio) | Implementa `GestaoReservas`: consulta a ocupação, gera uma reserva por slot de um plano aprovado, grava, libera e lista | Situação do plano |
+| `ReservaRepositoryPort` | Persistência das reservas | Só é usada pelo `ReservaService`; **nenhum caso de uso a acessa** |
+| Casos de uso | Orquestram plano + reservas pela interface `GestaoReservas` | Repositório de reservas e classe concreta do serviço |
 
-O `ReservaService` é Java puro (I8) e implementa `VerificadorDisponibilidade`, então é ele que o plano
-recebe em `validar`/`aprovar` para consultar a ocupação. O bean é criado em `ServicosDominioConfig` e
-**injetado pelo construtor** nos casos de uso. No UC07 o `AprovarPlanoUseCase` recebe o `ReservaService`
-(e não mais a porta de reservas): `plano.aprovar(reservaService)` muda a situação e, em seguida,
-`reservaService.reservar(plano)` gera e grava as reservas na mesma transação. O UC11 faz o inverso:
-`plano.cancelar(agora)` e `reservaService.liberar(id)`. As respostas montam as reservas com
-`reservaService.doPlano(id)`, e o adaptador de planos deixou de depender da porta de reservas.
+```mermaid
+flowchart TD
+    uc["Casos de uso<br/>(Aprovar, Validar, Cancelar, Consultar,<br/>Listar, Altitudes, Vagas)"] --> gr["«interface»<br/>GestaoReservas"]
+    rs["ReservaService<br/>(domínio)"] -. implementa .-> gr
+    rs --> rp["ReservaRepositoryPort"]
+    ra["ReservaRepositoryAdapter<br/>(JPA)"] -. implementa .-> rp
+```
+
+O `ReservaService` é Java puro (I8). `GestaoReservas` estende `VerificadorDisponibilidade`, então é o
+serviço que o plano recebe em `validar`/`aprovar` para consultar a ocupação; o `ReservaRepositoryPort`
+deixou de estender `VerificadorDisponibilidade` e é só persistência. O bean é criado em
+`ServicosDominioConfig` com o tipo `GestaoReservas` e **injetado pelo construtor** nos casos de uso, que não
+conhecem a classe concreta: outra implementação (por exemplo, um proxy para um serviço remoto de reservas)
+pode ser trocada só na configuração.
+
+No UC07 o `AprovarPlanoUseCase` recebe apenas `PlanoDeVooRepositoryPort` e `GestaoReservas` por injeção de
+dependência (não recebe mais o `ValidarPlanoUseCase`): `plano.aprovar(reservas)` revalida e muda a situação
+e, em seguida, `reservas.reservar(plano)` gera e grava as reservas na mesma transação. O UC11 faz o inverso:
+`plano.cancelar(agora)` e `reservas.liberar(id)`. As respostas montam as reservas com `reservas.doPlano(id)`,
+e as consultas de disponibilidade (UC04/UC05) usam `reservas.daAerovia(...)`/`reservas.doAeroporto(...)`.
 
 **Alternativa.** Manter a geração das reservas dentro de `PlanoDeVoo.aprovar`, como antes. O agregado
 acumulava duas responsabilidades (ciclo de vida e ocupação de recursos), e o caso de uso precisava manusear

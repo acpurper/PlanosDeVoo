@@ -19,6 +19,7 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.ReservaAerovia;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.ReservaVaga;
 import br.pucrs.projarc.gestaoplanosvoo.domain.repository.MalhaRepositoryPort;
 import br.pucrs.projarc.gestaoplanosvoo.domain.repository.ReservaRepositoryPort;
+import br.pucrs.projarc.gestaoplanosvoo.domain.service.ReservaService;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -34,8 +35,8 @@ class ConsultaDisponibilidadeTest {
 
     private final MalhaEmMemoria malha = new MalhaEmMemoria();
     private final ReservasEmMemoria reservas = new ReservasEmMemoria();
-    private final ConsultarAltitudesLivresUseCase altitudes = new ConsultarAltitudesLivresUseCase(malha, reservas);
-    private final ConsultarVagasLivresUseCase vagas = new ConsultarVagasLivresUseCase(malha, reservas);
+    private final ConsultarAltitudesLivresUseCase altitudes = new ConsultarAltitudesLivresUseCase(malha, new ReservaService(reservas));
+    private final ConsultarVagasLivresUseCase vagas = new ConsultarVagasLivresUseCase(malha, new ReservaService(reservas));
 
     @Test
     void altitudeOcupadaEmUmSlotDoPeriodoNaoEstaDisponivel() {

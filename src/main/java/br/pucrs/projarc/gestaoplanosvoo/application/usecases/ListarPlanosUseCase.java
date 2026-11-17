@@ -4,7 +4,7 @@ import br.pucrs.projarc.gestaoplanosvoo.application.dto.response.PlanoResumoResp
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.PlanoDeVoo;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.SituacaoPlano;
 import br.pucrs.projarc.gestaoplanosvoo.domain.repository.PlanoDeVooRepositoryPort;
-import br.pucrs.projarc.gestaoplanosvoo.domain.service.ReservaService;
+import br.pucrs.projarc.gestaoplanosvoo.domain.service.GestaoReservas;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,18 +15,18 @@ import java.util.List;
 public class ListarPlanosUseCase {
 
     private final PlanoDeVooRepositoryPort planos;
-    private final ReservaService reservaService;
+    private final GestaoReservas reservas;
 
-    public ListarPlanosUseCase(PlanoDeVooRepositoryPort planos, ReservaService reservaService) {
+    public ListarPlanosUseCase(PlanoDeVooRepositoryPort planos, GestaoReservas reservas) {
         this.planos = planos;
-        this.reservaService = reservaService;
+        this.reservas = reservas;
     }
 
     @Transactional(readOnly = true)
     public List<PlanoResumoResponse> executar(SituacaoPlano situacao) {
         List<PlanoDeVoo> encontrados = situacao == null ? planos.listarTodos() : planos.listarPorSituacao(situacao);
         return encontrados.stream()
-                .map(p -> PlanoResumoResponse.de(p, reservaService.doPlano(p.getId()).size()))
+                .map(p -> PlanoResumoResponse.de(p, reservas.doPlano(p.getId()).size()))
                 .toList();
     }
 }

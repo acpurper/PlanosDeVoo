@@ -8,7 +8,7 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.model.SlotHorario;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.Vaga;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.ReservaVaga;
 import br.pucrs.projarc.gestaoplanosvoo.domain.repository.MalhaRepositoryPort;
-import br.pucrs.projarc.gestaoplanosvoo.domain.repository.ReservaRepositoryPort;
+import br.pucrs.projarc.gestaoplanosvoo.domain.service.GestaoReservas;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,9 +23,9 @@ import java.util.stream.Collectors;
 public class ConsultarVagasLivresUseCase {
 
     private final MalhaRepositoryPort malha;
-    private final ReservaRepositoryPort reservas;
+    private final GestaoReservas reservas;
 
-    public ConsultarVagasLivresUseCase(MalhaRepositoryPort malha, ReservaRepositoryPort reservas) {
+    public ConsultarVagasLivresUseCase(MalhaRepositoryPort malha, GestaoReservas reservas) {
         this.malha = malha;
         this.reservas = reservas;
     }
@@ -37,7 +37,7 @@ public class ConsultarVagasLivresUseCase {
         List<SlotHorario> slots = SlotHorario.doPeriodo(inicio, fim);
 
         Map<Integer, List<ReservaVaga>> porVaga = reservas
-                .listarDoAeroporto(aeroportoCodigo, slots.getFirst().inicio(), slots.getLast().fim()).stream()
+                .doAeroporto(aeroportoCodigo, slots.getFirst().inicio(), slots.getLast().fim()).stream()
                 .collect(Collectors.groupingBy(r -> r.getVaga().getNumero()));
 
         List<Integer> livres = new ArrayList<>();

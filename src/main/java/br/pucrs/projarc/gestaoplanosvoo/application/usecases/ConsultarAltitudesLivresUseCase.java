@@ -8,7 +8,7 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.model.Altitude;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.SlotHorario;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.ReservaAerovia;
 import br.pucrs.projarc.gestaoplanosvoo.domain.repository.MalhaRepositoryPort;
-import br.pucrs.projarc.gestaoplanosvoo.domain.repository.ReservaRepositoryPort;
+import br.pucrs.projarc.gestaoplanosvoo.domain.service.GestaoReservas;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,9 +23,9 @@ import java.util.stream.Collectors;
 public class ConsultarAltitudesLivresUseCase {
 
     private final MalhaRepositoryPort malha;
-    private final ReservaRepositoryPort reservas;
+    private final GestaoReservas reservas;
 
-    public ConsultarAltitudesLivresUseCase(MalhaRepositoryPort malha, ReservaRepositoryPort reservas) {
+    public ConsultarAltitudesLivresUseCase(MalhaRepositoryPort malha, GestaoReservas reservas) {
         this.malha = malha;
         this.reservas = reservas;
     }
@@ -37,7 +37,7 @@ public class ConsultarAltitudesLivresUseCase {
         List<SlotHorario> slots = SlotHorario.doPeriodo(inicio, fim);
 
         Map<Integer, List<ReservaAerovia>> porAltitude = reservas
-                .listarDaAerovia(aeroviaId, slots.getFirst().inicio(), slots.getLast().fim()).stream()
+                .daAerovia(aeroviaId, slots.getFirst().inicio(), slots.getLast().fim()).stream()
                 .collect(Collectors.groupingBy(r -> r.getAltitude().pes()));
 
         List<Integer> livres = new ArrayList<>();

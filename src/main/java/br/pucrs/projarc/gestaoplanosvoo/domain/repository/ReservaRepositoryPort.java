@@ -1,6 +1,9 @@
 package br.pucrs.projarc.gestaoplanosvoo.domain.repository;
 
 import br.pucrs.projarc.gestaoplanosvoo.domain.exception.ConflitoReservaException;
+import br.pucrs.projarc.gestaoplanosvoo.domain.model.Altitude;
+import br.pucrs.projarc.gestaoplanosvoo.domain.model.SlotHorario;
+import br.pucrs.projarc.gestaoplanosvoo.domain.model.Vaga;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.Reserva;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.ReservaAerovia;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.ReservaVaga;
@@ -8,7 +11,14 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.ReservaVaga;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public interface ReservaRepositoryPort extends VerificadorDisponibilidade {
+/**
+ * Persistência das reservas. Usada somente pelo {@code ReservaService}; os casos de uso não a acessam.
+ */
+public interface ReservaRepositoryPort {
+
+    boolean altitudeOcupada(String aeroviaId, Altitude altitude, SlotHorario slot);
+
+    boolean vagaOcupada(Vaga vaga, SlotHorario slot);
 
     /**
      * Grava as reservas e sincroniza com o banco imediatamente (flush), para que um conflito de

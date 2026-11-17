@@ -1,10 +1,10 @@
 package br.pucrs.projarc.gestaoplanosvoo.domain.service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import br.pucrs.projarc.gestaoplanosvoo.domain.exception.ConflitoReservaException;
 import br.pucrs.projarc.gestaoplanosvoo.domain.exception.SituacaoInvalidaException;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.Altitude;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.PlanoDeVoo;
@@ -17,9 +17,12 @@ import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.Reserva;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.ReservaAerovia;
 import br.pucrs.projarc.gestaoplanosvoo.domain.model.reserva.ReservaVaga;
 import br.pucrs.projarc.gestaoplanosvoo.domain.repository.ReservaRepositoryPort;
-import br.pucrs.projarc.gestaoplanosvoo.domain.repository.VerificadorDisponibilidade;
 
-public class ReservaService implements VerificadorDisponibilidade {
+/**
+ * Serviço de domínio responsável pelas reservas. É a única classe que usa o {@link ReservaRepositoryPort};
+ * os casos de uso o enxergam apenas pela interface {@link GestaoReservas}.
+ */
+public class ReservaService implements GestaoReservas {
 
     private final ReservaRepositoryPort reservas;
 
@@ -59,18 +62,31 @@ public class ReservaService implements VerificadorDisponibilidade {
         return List.copyOf(novas);
     }
 
+    @Override
     public List<Reserva> reservar(PlanoDeVoo plano) {
         List<Reserva> novas = gerarReservas(plano);
         reservas.salvarTodas(novas);
         return novas;
     }
 
+    @Override
     public void liberar(Long planoId) {
         reservas.removerDoPlano(planoId);
     }
 
+    @Override
     public List<Reserva> doPlano(Long planoId) {
         return reservas.listarDoPlano(planoId);
+    }
+
+    @Override
+    public List<ReservaAerovia> daAerovia(String aeroviaId, LocalDateTime inicio, LocalDateTime fim) {
+        return reservas.listarDaAerovia(aeroviaId, inicio, fim);
+    }
+
+    @Override
+    public List<ReservaVaga> doAeroporto(String aeroportoCodigo, LocalDateTime inicio, LocalDateTime fim) {
+        return reservas.listarDoAeroporto(aeroportoCodigo, inicio, fim);
     }
 }
 

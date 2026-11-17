@@ -3,7 +3,7 @@ package br.pucrs.projarc.gestaoplanosvoo.application.usecases;
 import br.pucrs.projarc.gestaoplanosvoo.application.dto.response.PlanoResponse;
 import br.pucrs.projarc.gestaoplanosvoo.domain.exception.RecursoNaoEncontradoException;
 import br.pucrs.projarc.gestaoplanosvoo.domain.repository.PlanoDeVooRepositoryPort;
-import br.pucrs.projarc.gestaoplanosvoo.domain.service.ReservaService;
+import br.pucrs.projarc.gestaoplanosvoo.domain.service.GestaoReservas;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,17 +11,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class ConsultarPlanoUseCase {
 
     private final PlanoDeVooRepositoryPort planos;
-    private final ReservaService reservaService;
+    private final GestaoReservas reservas;
 
-    public ConsultarPlanoUseCase(PlanoDeVooRepositoryPort planos, ReservaService reservaService) {
+    public ConsultarPlanoUseCase(PlanoDeVooRepositoryPort planos, GestaoReservas reservas) {
         this.planos = planos;
-        this.reservaService = reservaService;
+        this.reservas = reservas;
     }
 
     @Transactional(readOnly = true)
     public PlanoResponse executar(Long planoId) {
         return planos.buscarPorId(planoId)
-                .map(p -> PlanoResponse.de(p, reservaService.doPlano(planoId)))
+                .map(p -> PlanoResponse.de(p, reservas.doPlano(planoId)))
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Plano " + planoId + " não encontrado."));
     }
 }
